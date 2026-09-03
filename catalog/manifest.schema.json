@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Algorithm Manifest",
+  "type": "object",
+  "required": ["id", "name", "runtime", "entrypoint", "input_schema", "output_schema"],
+  "properties": {
+    "id": { "type": "string" },
+    "version": { "type": "string", "default": "0.1.0" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "org": { "type": "string" },
+    "runtime": {
+      "type": "object",
+      "required": ["language"],
+      "properties": {
+        "language": { "type": "string" },
+        "version": { "type": "string" },
+        "primary": { "type": "boolean" }
+      }
+    },
+    "entrypoint": {
+      "type": "object",
+      "required": ["type", "target"],
+      "properties": {
+        "type": { "type": "string" },
+        "target": { "type": "string" },
+        "build_artifact": { "type": "string" }
+      }
+    },
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "timeout_seconds": { "type": "integer", "minimum": 1 },
+        "cpu": { "type": "number" },
+        "memory_bytes": { "type": "integer" }
+      }
+    },
+    "source": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "sample_inputs": { "type": "object" },
+    "license": { "type": ["string", "null"] },
+    "metadata_raw": { "type": "object" },
+    "security": { "type": "object" },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

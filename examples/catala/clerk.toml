@@ -1,0 +1,9 @@
+[project]
+include_dirs = ["src"]
+build_dir    = "_build"
+target_dir   = "_target"
+
+[[target]]
+name     = "quotient_familial_example"
+modules  = ["Quotient_familial"]
+backends = ["python"]

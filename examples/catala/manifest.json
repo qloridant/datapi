@@ -1,0 +1,31 @@
+{
+  "id": "examples.sample.quotient_familial_catala",
+  "version": "0.1.0",
+  "name": "Example Quotient Familial (Catala)",
+  "description": "POC sample algorithm implemented in Catala (https://catala-lang.org/), compiled to Python. Same computation as examples/python for comparison.",
+  "org": "local.examples",
+  "runtime": { "language": "catala", "version": "dev", "primary": true },
+  "entrypoint": { "type": "catala:scope", "target": "examples.catala.generated.Quotient_familial:quotient_familial" },
+  "input_schema": {
+    "type": "object",
+    "required": ["agent_revenu", "agent_enfants", "conjoint_revenu"],
+    "properties": {
+      "agent_revenu": { "type": "number" },
+      "agent_enfants": { "type": "integer" },
+      "conjoint_revenu": { "type": "number" }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "required": ["valeur", "nombre_parts"],
+    "properties": {
+      "valeur": { "type": "number" },
+      "nombre_parts": { "type": "integer" }
+    }
+  },
+  "resources": { "timeout_seconds": 10, "cpu": 0.2, "memory_bytes": 67108864 },
+  "source": ["examples/catala/src/quotient_familial.catala_fr"],
+  "sample_inputs": { "agent_revenu": 32000, "agent_enfants": 2, "conjoint_revenu": 0 },
+  "tags": ["example", "catala"]
+}

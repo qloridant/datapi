@@ -1,0 +1,30 @@
+@@Module Quotient_familial@@
+
+## Quotient familial (exemple)
+
+Exemple pédagogique inspiré du calcul du quotient familial, illustrant
+l'intégration de Catala (https://catala-lang.org/) dans Datapi. Les règles
+réelles du quotient familial sont bien plus riches ; ce module
+n'en retient qu'une version simplifiée à but de démonstration.
+
+```catala
+déclaration champ d'application QuotientFamilial:
+  entrée agent_revenu contenu argent
+  entrée agent_enfants contenu entier
+  entrée conjoint_revenu contenu argent
+  résultat valeur contenu argent
+  résultat nombre_parts contenu entier
+```
+
+Le quotient familial rapporte le revenu total du foyer au nombre de parts
+du foyer, ici simplifié à « un enfant, une demi-part » (arrondie à l'unité
+supérieure), l'agent comptant toujours pour une part entière.
+
+```catala
+champ d'application QuotientFamilial:
+  définition nombre_parts égal à
+    agent_enfants + 1
+
+  définition valeur égal à
+    (agent_revenu + conjoint_revenu) / nombre_parts
+```

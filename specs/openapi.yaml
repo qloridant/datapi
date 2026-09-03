@@ -1,0 +1,47 @@
+openapi: 3.0.3
+info:
+  title: Datapi POC API
+  version: "0.1.0"
+paths:
+  /health:
+    get:
+      summary: Health
+      responses:
+        "200":
+          description: OK
+  /catalog/register:
+    post:
+      summary: Register manifest
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: registered
+  /execute/{manifest_id}:
+    post:
+      summary: Execute algorithm by manifest id
+      parameters:
+        - name: manifest_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+      responses:
+        "200":
+          description: execution result
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

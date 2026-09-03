@@ -1,0 +1,36 @@
+{
+  "id": "examples.sample.quotient_familial",
+  "version": "0.1.0",
+  "name": "Example Quotient Familial (Python)",
+  "description": "POC sample algorithm implemented in Python",
+  "org": "local.examples",
+  "runtime": { "language": "python", "version": "3.11", "primary": true },
+  "entrypoint": { "type": "python:class", "target": "examples.python.sample_algorithm:SampleQuotientFamilial" },
+  "input_schema": {
+    "type": "object",
+    "required": ["agent_revenu", "agent_enfants"],
+    "properties": {
+      "data": { 
+        "type": "object",
+        "properties": {
+          "date_naissance": { "type": "string"},
+          "departement": { "type": "string"}
+        }
+      },
+      "context": { "type": "integer" }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "required": ["value", "explanation"],
+    "properties": {
+      "value": { "type": "string" },
+      "explanation": { "type": "string" }
+    }
+  },
+  "resources": { "timeout_seconds": 10, "cpu": 0.2, "memory_bytes": 67108864 },
+  "source": [],
+  "sample_inputs": { "agent_revenu": 32000, "agent_enfants": 2 },
+  "tags": ["example", "python"]
+}
