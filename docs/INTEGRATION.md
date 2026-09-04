@@ -92,6 +92,44 @@ comme `examples/python/`).
 `adapters/python_adapter.py`'s `_load_callable` qui fait
 `importlib.import_module(module_path)` puis `getattr(mod, attr)`.
 
+### 1bis. Intégrer un paquet conforme à [regalgo](https://github.com/datagouv/regalgo)
+
+Si l'algorithme existe déjà sous forme d'un paquet Python conforme à la
+convention `regalgo` (une classe exposant `algo_id`, `regulation` et
+`compute(algo_input: regalgo.AlgoInput) -> regalgo.AlgoResult`), pas besoin
+d'écrire un wrapper `run(data) -> dict` par paquet : `entrypoint.type:
+"python:regalgo_class"` fait le pont de façon générique, pour n'importe quel
+paquet de ce type, dans `adapters/python_adapter.py`.
+
+```json
+{
+  "entrypoint": { "type": "python:regalgo_class", "target": "monorg.mon_algo.regles:MonAlgo" },
+  "input_schema": {
+    "type": "object",
+    "required": ["data", "context"],
+    "properties": {
+      "data": { "type": "object" },
+      "context": { "type": "object" }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "required": ["value", "algo_id", "regulation", "inputs_snapshot", "metadata"]
+  }
+}
+```
+
+- Le body JSON envoyé à `/execute/{id}` doit avoir la forme
+  `{"data": {...}, "context": {...}}` — c'est directement la structure de
+  `regalgo.AlgoInput`, reconstruite telle quelle avant l'appel à `compute()`.
+- La sortie est `regalgo.AlgoResult` sérialisé tel quel (`value`, `algo_id`,
+  `regulation`, `inputs_snapshot`, `metadata`), avec les types non
+  JSON-natifs (`Decimal`, `date`/`datetime`) convertis en chaînes.
+- Voir [`examples/pass-culture-package/manifest.json`](../examples/pass-culture-package/manifest.json)
+  pour un exemple complet — `entrypoint.target` y pointe directement sur
+  `pass_culture_rules.montant_total.regles:MontantTotalAlgo`, sans aucun
+  code de glue spécifique à ce paquet.
+
 ### 3. Tester en local, sans passer par l'API
 
 ```python
@@ -179,6 +217,44 @@ font `aides.py`/`utils.py` de Prest'Agri) et l'enregistrer comme un
 algorithme **Python** classique (`entrypoint.type: "python:class"` ou
 `"python:function"`) qui appelle le module Catala en interne. Les deux
 adapters se composent ainsi au lieu de dupliquer la logique de marshalling.
+
+### 3bis. Générer `input_schema`/`output_schema` automatiquement
+
+Le module compilé porte déjà tous les types nécessaires (les mêmes que ceux
+lus par le marshalling ci-dessus) : plutôt que de transcrire `input_schema`/
+`output_schema` à la main — source d'erreurs, comme on l'a vu avec les champs
+qui ne correspondaient pas à la vraie struct générée — `CatalaAdapter` peut
+les dériver directement.
+
+```python
+from adapters.catala_adapter import CatalaAdapter
+
+schemas = CatalaAdapter().infer_manifest_schemas("monorg.generated.MonAlgo:mon_scope")
+print(schemas["input_schema"])
+print(schemas["output_schema"])
+print(schemas["sample_inputs"])  # valeurs de démonstration, dérivées du même parcours de types
+print(schemas["warnings"])  # champs non couverts (ex. CatalaEnum en entrée), à corriger à la main
+```
+
+`sample_inputs` suit le même parcours de types que `input_schema` (mêmes clés
+JSON, même dépliage des structs/listes/options) et produit une valeur
+plausible par champ (`0` pour `Money`/`Integer`/`Decimal`, `false` pour
+`Bool`, la date du jour pour `Date`, une liste à un élément pour un `Array`,
+la valeur enveloppée — pas `null` — pour un `Option`) ; un champ `CatalaEnum`
+en entrée reste à `null`, à remplir à la main (voir la limite ci-dessous).
+
+Aussi exposé via `POST /catalog/infer-schema` (body : `{"type": "catala:scope",
+"target": "..."}`, même auth Bearer que les autres routes `/catalog/*`), et
+dans la console `/admin` : bouton « Générer input/output_schema + sample_inputs
+(Catala) » dans le panneau d'enregistrement, qui remplit les trois champs du
+manifeste en cours d'édition à partir de son `entrypoint.target`.
+
+Limite identique à celle du marshalling : un champ `CatalaEnum` en **entrée**
+n'a pas de représentation générique fiable (voir plus bas) — il apparaît dans
+`warnings` avec un schéma laissé permissif (`{}`) et une valeur `null` dans
+`sample_inputs`, à corriger à la main ou à couvrir via un wrapper Python. En
+**sortie**, les `CatalaEnum` sont en revanche entièrement supportés
+(`{"code": ..., "payload": ...}`).
 
 ### 4. Tester en local
 

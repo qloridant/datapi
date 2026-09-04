@@ -1,9 +1,26 @@
+import datetime
+import decimal
 import importlib
 import traceback
 import time
 from typing import Any, Dict
 from adapters.adapter_base import AdapterBase
 from jsonschema import validate as js_validate, ValidationError
+from regalgo import AlgoInput
+
+
+def _json_safe(value: Any) -> Any:
+    """Recursively coerce values (Decimal, date/datetime, ...) into JSON-serializable ones."""
+    if isinstance(value, decimal.Decimal):
+        return str(value)
+    if isinstance(value, (datetime.date, datetime.datetime)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return value
+
 
 class PythonAdapter(AdapterBase):
     def identify(self):
@@ -44,14 +61,27 @@ class PythonAdapter(AdapterBase):
             if not v.get("ok"):
                 return {"status": "failed", "error": v.get("error")}
             entry = manifest["entrypoint"]
-            if entry["type"] not in ("python:class", "python:function"):
+            if entry["type"] not in ("python:class", "python:function", "python:regalgo_class"):
                 return {"status": "failed", "error": "unsupported python entrypoint type"}
             target = entry["target"]
             callable_obj = self._load_callable(target)
-            # if class, instantiate and call run(); if function, call directly
             if entry["type"] == "python:class":
+                # a class with a run(self, data: dict) -> dict method
                 instance = callable_obj()
                 out = instance.run(input_json)
+            elif entry["type"] == "python:regalgo_class":
+                # a class conforming to regalgo's compute(AlgoInput) -> AlgoResult convention
+                # (see https://github.com/datagouv/regalgo). Body shape: {"data": {...}, "context": {...}}.
+                instance = callable_obj()
+                algo_input = AlgoInput(data=input_json.get("data", {}), context=input_json.get("context", {}))
+                result = instance.compute(algo_input)
+                out = {
+                    "value": _json_safe(result.value),
+                    "algo_id": result.algo_id,
+                    "regulation": _json_safe(result.regulation),
+                    "inputs_snapshot": _json_safe(result.inputs_snapshot),
+                    "metadata": _json_safe(result.metadata),
+                }
             else:
                 out = callable_obj(input_json)
             duration = time.time() - start

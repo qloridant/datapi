@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datapi — Console d'administration</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #dde1e6;
+    --text: #1b1f24;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --ok: #15803d;
+    --err: #b91c1c;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --panel: #1c1f24;
+      --border: #2c3038;
+      --text: #e6e8eb;
+      --muted: #9aa1ab;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --ok: #4ade80;
+      --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 18px;
+    margin: 0;
+    font-weight: 600;
+  }
+  header .sub {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .token-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  main {
+    padding: 24px 28px 60px;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+  input, textarea, select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  textarea {
+    min-height: 140px;
+    resize: vertical;
+  }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  button:hover { background: var(--accent-hover); }
+  button.ghost {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  button.ghost:hover { background: var(--bg); }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .manifest-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 380px;
+    overflow-y: auto;
+  }
+  .manifest-list li {
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    word-break: break-all;
+    border: 1px solid transparent;
+  }
+  .manifest-list li:hover { background: var(--bg); }
+  .manifest-list li.active {
+    border-color: var(--accent);
+    background: var(--bg);
+  }
+  pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 12px;
+    overflow: auto;
+    max-height: 320px;
+    margin: 0;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    display: inline-block;
+  }
+  .status-dot.ok { background: var(--ok); }
+  .status-dot.err { background: var(--err); }
+  .msg { font-size: 12.5px; margin-top: 4px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  .full-width { grid-column: 1 / -1; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Datapi</h1>
+    <div class="sub">Console d'administration du catalogue d'algorithmes</div>
+  </div>
+  <div class="token-bar">
+    <span id="health-dot" class="status-dot" title="statut de l'API"></span>
+    <input id="token" type="password" placeholder="Bearer token" style="width:220px" autocomplete="off">
+    <button class="ghost" id="save-token">Enregistrer</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel stack">
+    <h2>Catalogue</h2>
+    <div class="row">
+      <button class="ghost" id="refresh-catalog">Rafraîchir</button>
+      <span id="catalog-count" class="muted"></span>
+    </div>
+    <ul class="manifest-list" id="manifest-list"></ul>
+    <div id="manifest-detail-wrap" style="display:none">
+      <h2 style="margin-top:14px">Détail</h2>
+      <pre id="manifest-detail"></pre>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" id="load-sample-btn" style="display:none">Charger l'exemple dans "Exécuter"</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack">
+    <div class="panel stack">
+      <h2>Enregistrer un manifeste</h2>
+      <div class="row" style="flex-wrap:wrap">
+        <span class="muted">Partir d'un modèle :</span>
+        <button class="ghost" data-template="python-regalgo">Python (regalgo)</button>
+        <button class="ghost" data-template="catala-scope">Catala (scope)</button>
+      </div>
+      <textarea id="register-input" placeholder='{"id": "mon.algo", "name": "...", "runtime": {"language": "python"}, ...}'></textarea>
+      <div class="row">
+        <button class="ghost" id="validate-btn">Valider</button>
+        <button class="ghost" id="infer-schema-btn" title="Génère input_schema/output_schema/sample_inputs depuis le module Catala compilé (entrypoint.type: catala:scope)">Générer input/output_schema + sample_inputs (Catala)</button>
+        <button id="register-btn">Enregistrer</button>
+      </div>
+      <ul id="register-errors" class="msg" style="display:none; padding-left:18px; margin:4px 0 0"></ul>
+      <div id="register-msg" class="msg"></div>
+    </div>
+
+    <div class="panel stack">
+      <h2>Exécuter</h2>
+      <div class="row">
+        <input id="execute-id" placeholder="id du manifeste" list="manifest-ids">
+        <datalist id="manifest-ids"></datalist>
+      </div>
+      <textarea id="execute-input" placeholder='{"agent_revenu": 32000, "agent_enfants": 2}'></textarea>
+      <div class="row">
+        <button id="execute-btn">Exécuter</button>
+      </div>
+      <div id="execute-msg" class="msg"></div>
+      <pre id="execute-result" style="display:none"></pre>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function getToken() {
+  return localStorage.getItem('datapi_token') || '';
+}
+
+function authHeaders() {
+  return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
+}
+
+async function checkHealth() {
+  const dot = $('health-dot');
+  try {
+    const res = await fetch('/health');
+    dot.className = 'status-dot ' + (res.ok ? 'ok' : 'err');
+  } catch (e) {
+    dot.className = 'status-dot err';
+  }
+}
+
+async function refreshCatalog() {
+  const list = $('manifest-list');
+  const count = $('catalog-count');
+  const datalist = $('manifest-ids');
+  list.innerHTML = '<li class="muted">Chargement…</li>';
+  try {
+    const res = await fetch('/catalog', { headers: authHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const ids = await res.json();
+    count.textContent = `${ids.length} manifeste(s)`;
+    list.innerHTML = '';
+    datalist.innerHTML = '';
+    ids.forEach((id) => {
+      const li = document.createElement('li');
+      li.textContent = id;
+      li.onclick = () => showManifest(id, li);
+      list.appendChild(li);
+      const opt = document.createElement('option');
+      opt.value = id;
+      datalist.appendChild(opt);
+    });
+    if (ids.length === 0) list.innerHTML = '<li class="muted">Aucun manifeste enregistré</li>';
+  } catch (e) {
+    list.innerHTML = `<li class="muted">Erreur: ${e.message}</li>`;
+    count.textContent = '';
+  }
+}
+
+async function showManifest(id, liEl) {
+  document.querySelectorAll('#manifest-list li').forEach((el) => el.classList.remove('active'));
+  if (liEl) liEl.classList.add('active');
+  const wrap = $('manifest-detail-wrap');
+  const pre = $('manifest-detail');
+  const loadSampleBtn = $('load-sample-btn');
+  wrap.style.display = 'block';
+  pre.textContent = 'Chargement…';
+  loadSampleBtn.style.display = 'none';
+  try {
+    const res = await fetch(`/catalog/${encodeURIComponent(id)}`, { headers: authHeaders() });
+    const body = await res.json();
+    pre.textContent = JSON.stringify(body, null, 2);
+    if (res.ok) {
+      $('execute-id').value = id;
+      if (body.sample_inputs !== undefined) {
+        loadSampleBtn.style.display = 'inline-block';
+        loadSampleBtn.onclick = () => {
+          $('execute-id').value = id;
+          $('execute-input').value = JSON.stringify(body.sample_inputs, null, 2);
+        };
+      }
+    }
+  } catch (e) {
+    pre.textContent = `Erreur: ${e.message}`;
+  }
+}
+
+// -- manifest templates & structural validation, to help drafting manifest.json --
+
+const MANIFEST_TEMPLATES = {
+  'python-class': {
+    note: "La classe cible doit exposer run(self, data: dict) -> dict.",
+    manifest: {
+      id: "monorg.mon_algo", version: "0.1.0", name: "Mon algorithme", description: "", org: "monorg",
+      runtime: { language: "python", version: "3.11", primary: true },
+      entrypoint: { type: "python:class", target: "monorg.mon_algo:MonAlgo" },
+      input_schema: { type: "object", required: ["x"], properties: { x: { type: "number" } }, additionalProperties: false },
+      output_schema: { type: "object", required: ["value"], properties: { value: { type: "number" } } },
+      resources: { timeout_seconds: 10 }, source: [], sample_inputs: { x: 1 }, tags: [],
+    },
+  },
+  'python-function': {
+    note: "La fonction cible doit avoir la signature f(data: dict) -> dict.",
+    manifest: {
+      id: "monorg.mon_algo", version: "0.1.0", name: "Mon algorithme", description: "", org: "monorg",
+      runtime: { language: "python", version: "3.11", primary: true },
+      entrypoint: { type: "python:function", target: "monorg.mon_algo:mon_algo" },
+      input_schema: { type: "object", required: ["x"], properties: { x: { type: "number" } }, additionalProperties: false },
+      output_schema: { type: "object", required: ["value"], properties: { value: { type: "number" } } },
+      resources: { timeout_seconds: 10 }, source: [], sample_inputs: { x: 1 }, tags: [],
+    },
+  },
+  'python-regalgo': {
+    note: "La classe cible doit être conforme à regalgo : compute(AlgoInput) -> AlgoResult. Pas de wrapper nécessaire, entrypoint.target pointe directement dessus.",
+    manifest: {
+      id: "monorg.mon_algo", version: "0.1.0", name: "Mon algorithme", description: "", org: "monorg",
+      runtime: { language: "python", version: "3.11", primary: true },
+      entrypoint: { type: "python:regalgo_class", target: "monorg.mon_algo.regles:MonAlgo" },
+      input_schema: {
+        type: "object", required: ["data", "context"],
+        properties: { data: { type: "object" }, context: { type: "object" } },
+        additionalProperties: false,
+      },
+      output_schema: {
+        type: "object",
+        required: ["value", "algo_id", "regulation", "inputs_snapshot", "metadata"],
+        properties: { value: {}, algo_id: { type: "string" }, regulation: { type: "object" }, inputs_snapshot: { type: "object" }, metadata: { type: "object" } },
+      },
+      resources: { timeout_seconds: 10 }, source: [], sample_inputs: { data: {}, context: {} }, tags: [],
+    },
+  },
+  'catala-scope': {
+    note: "target = module_généré_par_catala:fonction_de_scope. La compilation Catala (catala/clerk) doit avoir eu lieu en amont, hors Datapi.",
+    manifest: {
+      id: "monorg.mon_algo_catala", version: "0.1.0", name: "Mon algorithme (Catala)", description: "", org: "monorg",
+      runtime: { language: "catala", version: "dev", primary: true },
+      entrypoint: { type: "catala:scope", target: "monorg.generated.MonAlgo:mon_scope" },
+      input_schema: { type: "object", required: [], properties: {}, additionalProperties: false },
+      output_schema: { type: "object", required: [], properties: {} },
+      resources: { timeout_seconds: 10 }, source: ["monorg/src/mon_algo.catala_fr"], sample_inputs: {}, tags: [],
+    },
+  },
+};
+
+let manifestSchema = null;
+async function loadManifestSchema() {
+  try {
+    const res = await fetch('/manifest-schema');
+    manifestSchema = await res.json();
+  } catch (e) {
+    manifestSchema = null;
+  }
+}
+
+function jsonSchemaType(v) {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return 'array';
+  if (typeof v === 'number') return 'number';
+  return typeof v;
+}
+
+function matchesJsonSchemaType(v, t) {
+  switch (t) {
+    case 'object': return v !== null && typeof v === 'object' && !Array.isArray(v);
+    case 'array': return Array.isArray(v);
+    case 'string': return typeof v === 'string';
+    case 'integer': return typeof v === 'number' && Number.isInteger(v);
+    case 'number': return typeof v === 'number';
+    case 'boolean': return typeof v === 'boolean';
+    case 'null': return v === null;
+    default: return true;
+  }
+}
+
+// Structural check against catalog/manifest.schema.json: required + type (incl. union types),
+// nested properties/additionalProperties, array items. Covers what that schema actually uses
+// (no $ref/enum/oneOf), it is not a general-purpose JSON Schema validator.
+function validateAgainstSchema(schema, value, path) {
+  const errors = [];
+  (function walk(schema, value, path) {
+    if (!schema || typeof schema !== 'object') return;
+    const label = path || '(racine)';
+    if (schema.type) {
+      const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+      if (!types.some((t) => matchesJsonSchemaType(value, t))) {
+        errors.push(`${label} : type attendu ${types.join(' | ')}, reçu ${jsonSchemaType(value)}`);
+        return;
+      }
+    }
+    const isObjectSchema = schema.type === 'object' || (Array.isArray(schema.type) && schema.type.includes('object'));
+    if (isObjectSchema && value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const req of schema.required || []) {
+        if (!(req in value)) errors.push(`${label} : propriété requise manquante '${req}'`);
+      }
+      const props = schema.properties || {};
+      for (const [key, subschema] of Object.entries(props)) {
+        if (key in value) walk(subschema, value[key], path ? `${path}.${key}` : key);
+      }
+      if (schema.additionalProperties === false) {
+        for (const key of Object.keys(value)) {
+          if (!(key in props)) errors.push(`${label} : propriété inattendue '${key}' (additionalProperties: false)`);
+        }
+      }
+    }
+    if (schema.type === 'array' && Array.isArray(value) && schema.items) {
+      value.forEach((item, i) => walk(schema.items, item, `${path}[${i}]`));
+    }
+  })(schema, value, path || '');
+  return errors;
+}
+
+function showRegisterErrors(errors) {
+  const list = $('register-errors');
+  if (errors.length === 0) {
+    list.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  list.style.display = 'block';
+  list.className = 'msg err';
+  list.innerHTML = errors.map((e) => `<li>${e}</li>`).join('');
+}
+
+function validateRegisterInput() {
+  const msg = $('register-msg');
+  msg.textContent = '';
+  msg.className = 'msg';
+  let manifest;
+  try {
+    manifest = JSON.parse($('register-input').value);
+  } catch (e) {
+    showRegisterErrors([]);
+    msg.textContent = `JSON invalide: ${e.message}`;
+    msg.className = 'msg err';
+    return null;
+  }
+  if (!manifestSchema) {
+    showRegisterErrors([]);
+    return manifest;
+  }
+  const errors = validateAgainstSchema(manifestSchema, manifest, '');
+  showRegisterErrors(errors);
+  if (errors.length === 0) {
+    msg.textContent = 'Structure valide.';
+    msg.className = 'msg ok';
+  }
+  return errors.length === 0 ? manifest : null;
+}
+
+async function inferSchema() {
+  const msg = $('register-msg');
+  msg.textContent = '';
+  msg.className = 'msg';
+  showRegisterErrors([]);
+  let manifest;
+  try {
+    manifest = JSON.parse($('register-input').value);
+  } catch (e) {
+    msg.textContent = `JSON invalide: ${e.message}`;
+    msg.className = 'msg err';
+    return;
+  }
+  if (!manifest.entrypoint || manifest.entrypoint.type !== 'catala:scope') {
+    msg.textContent = "Génération disponible seulement pour entrypoint.type 'catala:scope'.";
+    msg.className = 'msg err';
+    return;
+  }
+  try {
+    const res = await fetch('/catalog/infer-schema', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(manifest.entrypoint),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+    manifest.input_schema = body.input_schema;
+    manifest.output_schema = body.output_schema;
+    manifest.sample_inputs = body.sample_inputs;
+    $('register-input').value = JSON.stringify(manifest, null, 2);
+    if (body.warnings && body.warnings.length > 0) {
+      showRegisterErrors(body.warnings.map((w) => `Non couvert automatiquement : ${w}`));
+      msg.textContent = 'Schémas + sample_inputs générés (avec avertissements ci-dessous : champs CatalaEnum laissés à null, à remplir à la main).';
+      msg.className = 'msg';
+    } else {
+      msg.textContent = 'input_schema / output_schema / sample_inputs générés depuis le module compilé.';
+      msg.className = 'msg ok';
+    }
+  } catch (e) {
+    msg.textContent = `Erreur: ${e.message}`;
+    msg.className = 'msg err';
+  }
+}
+
+document.querySelectorAll('[data-template]').forEach((btn) => {
+  btn.onclick = () => {
+    const tpl = MANIFEST_TEMPLATES[btn.dataset.template];
+    $('register-input').value = JSON.stringify(tpl.manifest, null, 2);
+    showRegisterErrors([]);
+    const msg = $('register-msg');
+    msg.textContent = tpl.note;
+    msg.className = 'msg';
+  };
+});
+
+async function registerManifest() {
+  const manifest = validateRegisterInput();
+  if (!manifest) return;
+  const msg = $('register-msg');
+  try {
+    const res = await fetch('/catalog/register', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(manifest),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+    msg.textContent = `Enregistré: ${body.id}`;
+    msg.className = 'msg ok';
+    refreshCatalog();
+  } catch (e) {
+    msg.textContent = `Erreur: ${e.message}`;
+    msg.className = 'msg err';
+  }
+}
+
+async function executeManifest() {
+  const id = $('execute-id').value.trim();
+  const msg = $('execute-msg');
+  const resultPre = $('execute-result');
+  msg.textContent = '';
+  msg.className = 'msg';
+  resultPre.style.display = 'none';
+  if (!id) {
+    msg.textContent = 'Indiquez un id de manifeste';
+    msg.className = 'msg err';
+    return;
+  }
+  let input;
+  try {
+    input = $('execute-input').value.trim() ? JSON.parse($('execute-input').value) : {};
+  } catch (e) {
+    msg.textContent = `JSON invalide: ${e.message}`;
+    msg.className = 'msg err';
+    return;
+  }
+  try {
+    const res = await fetch(`/execute/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(input),
+    });
+    const body = await res.json();
+    resultPre.style.display = 'block';
+    resultPre.textContent = JSON.stringify(body, null, 2);
+    msg.textContent = res.ok ? `Succès (HTTP ${res.status})` : `Erreur (HTTP ${res.status})`;
+    msg.className = 'msg ' + (res.ok ? 'ok' : 'err');
+  } catch (e) {
+    msg.textContent = `Erreur: ${e.message}`;
+    msg.className = 'msg err';
+  }
+}
+
+$('save-token').onclick = () => {
+  localStorage.setItem('datapi_token', $('token').value);
+  refreshCatalog();
+};
+$('refresh-catalog').onclick = refreshCatalog;
+$('register-btn').onclick = registerManifest;
+$('validate-btn').onclick = validateRegisterInput;
+$('infer-schema-btn').onclick = inferSchema;
+$('execute-btn').onclick = executeManifest;
+
+$('token').value = getToken();
+checkHealth();
+refreshCatalog();
+loadManifestSchema();
+</script>
+</body>
+</html>

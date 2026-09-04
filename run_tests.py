@@ -11,9 +11,12 @@ def run():
     print("Running tests...")
     for module_name, test_name in [
         ('tests.test_adapter', 'test_validate_input_and_execute'),
+        ('tests.test_adapter', 'test_regalgo_class_entrypoint'),
         ('tests.test_catala_adapter', 'test_validate_input_and_execute'),
         ('tests.test_catala_adapter', 'test_execute_matches_python_example'),
         ('tests.test_catala_adapter', 'test_missing_input_field_reports_failure_not_crash'),
+        ('tests.test_catala_adapter', 'test_infer_manifest_schemas_matches_hand_written_manifest'),
+        ('tests.test_catala_adapter', 'test_infer_manifest_schemas_handles_nested_structs_and_enums'),
     ]:
         mod = importlib.import_module(module_name)
         try:
@@ -43,8 +46,16 @@ def health_check():
 
 def execute_pass_culture(manifest):
     test_data = {
-        "date_naissance": "2026-01-01",
-        "departement": "1",
+        "data": {
+            "age": 18,
+            "date_naissance": "2007-06-15",
+            "dispose_credit_17_18": True,
+            "bonification_deja_versee": True,
+        },
+        "context": {
+            "date_evaluation": "2025-06-16T00:00:00",
+            "date_decret_v3": "2025-02-27T00:00:00",
+        },
     }
     response = requests.post(f'http://127.0.0.1:8000/execute/{manifest}', json=test_data, headers=HEADERS)
     print(response.status_code)
@@ -63,7 +74,7 @@ if __name__ == '__main__':
     health_check()
     run_register_a_test_manifest('examples/python/manifest.json')
     run_register_a_test_manifest('examples/pass-culture-package/manifest.json')
-    manifests = list_manifests()
-    # execute_example(manifests[0])
-    execute_example(manifests[1])
+    list_manifests()
+    execute_example('examples.sample.quotient_familial')
+    execute_pass_culture('pass_culture')
 

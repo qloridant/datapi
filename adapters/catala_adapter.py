@@ -32,6 +32,7 @@ Input/output marshalling:
   do) and register it with `PythonAdapter` instead -- the two adapters
   compose rather than duplicate each other's job.
 """
+import datetime
 import importlib
 import inspect
 import time
@@ -104,13 +105,138 @@ class CatalaAdapter(AdapterBase):
                 rt[name] = getattr(mod, name)
         return rt
 
+    # -- JSON Schema inference, from the same type hints the marshalling above
+    #    reads -- lets input_schema/output_schema be generated instead of
+    #    hand-transcribed (and drifting) from the compiled struct's fields.
+
+    def infer_manifest_schemas(self, target: str) -> Dict[str, Any]:
+        mod, func, input_cls = self._load_scope(target)
+        rt = self._rt(mod)
+        output_cls = typing.get_type_hints(func).get("return")
+        warnings: list = []
+        input_schema = self._infer_schema(input_cls, rt, "input", warnings)
+        output_schema = self._infer_schema(output_cls, rt, "output", warnings) if output_cls is not None else {"type": "object"}
+        sample_inputs = self._sample_value(input_cls, rt)
+        return {"input_schema": input_schema, "output_schema": output_schema, "sample_inputs": sample_inputs, "warnings": warnings}
+
+    def _make_nullable(self, schema: Dict[str, Any]) -> Dict[str, Any]:
+        schema = dict(schema)
+        t = schema.get("type")
+        if t is None:
+            return schema  # already permissive (accepts anything, including null)
+        types = list(t) if isinstance(t, list) else [t]
+        if "null" not in types:
+            types.append("null")
+        schema["type"] = types
+        return schema
+
+    def _infer_schema(self, target_type: Any, rt: Dict[str, Any], direction: str, warnings: list, _seen=None) -> Dict[str, Any]:
+        origin = typing.get_origin(target_type)
+        args = typing.get_args(target_type)
+
+        if origin is not None and rt.get("Option") is not None and origin is rt["Option"]:
+            return self._make_nullable(self._infer_schema(args[0], rt, direction, warnings, _seen))
+        if origin is not None and rt.get("Array") is not None and origin in (rt["Array"], list):
+            return {"type": "array", "items": self._infer_schema(args[0], rt, direction, warnings, _seen)}
+
+        if isinstance(target_type, type) and rt.get("CatalaEnum") and issubclass(target_type, rt["CatalaEnum"]):
+            if direction == "input":
+                # _to_catala has no generic marshalling for enum payloads on the way in
+                # (see adapter docstring / docs/INTEGRATION.md) -- flag it instead of
+                # emitting a schema that would silently accept anything.
+                warnings.append(
+                    f"{target_type.__name__} (CatalaEnum) : pas de marshalling générique en entrée, "
+                    f"écrire un wrapper Python (voir docs/INTEGRATION.md)"
+                )
+                return {}
+            # _from_catala turns enum outputs into {"code": ..., "payload": ...}
+            return {
+                "type": "object",
+                "required": ["code", "payload"],
+                "properties": {"code": {"type": "string"}, "payload": {}},
+            }
+
+        if isinstance(target_type, type) and rt.get("CatalaStruct") and issubclass(target_type, rt["CatalaStruct"]):
+            _seen = _seen or set()
+            if target_type in _seen:
+                return {"type": "object"}  # break cycles in (mutually) recursive structs
+            _seen = _seen | {target_type}
+            hints = typing.get_type_hints(target_type)
+            field_hints = {k: v for k, v in hints.items() if k in target_type.fields}
+            properties, required = {}, []
+            for field, field_type in field_hints.items():
+                # scope *input* structs suffix every field with `_in`; strip it so the
+                # generated schema matches the key names _to_catala/_from_catala accept.
+                json_key = field.removesuffix("_in")
+                properties[json_key] = self._infer_schema(field_type, rt, direction, warnings, _seen)
+                required.append(json_key)
+            return {"type": "object", "required": required, "properties": properties, "additionalProperties": False}
+
+        if target_type is rt.get("Money") or target_type is rt.get("Decimal"):
+            return {"type": "number"}
+        if target_type is rt.get("Integer"):
+            return {"type": "integer"}
+        if target_type is rt.get("Bool"):
+            return {"type": "boolean"}
+        if target_type is rt.get("Date"):
+            return {"type": "string", "format": "date"}
+
+        warnings.append(f"type '{getattr(target_type, '__name__', target_type)}' non reconnu, schéma laissé permissif")
+        return {}
+
+    def _sample_value(self, target_type: Any, rt: Dict[str, Any], _seen=None) -> Any:
+        """Placeholder value for `target_type`, keyed and shaped like `_infer_schema`'s
+        output (same `_in`-suffix stripping, same struct/array/option walk) so it can be
+        dropped straight into a manifest's `sample_inputs` and fed to `_to_catala`."""
+        origin = typing.get_origin(target_type)
+        args = typing.get_args(target_type)
+
+        if origin is not None and rt.get("Option") is not None and origin is rt["Option"]:
+            # a real sample value rather than null, so the sample showcases the full shape
+            return self._sample_value(args[0], rt, _seen)
+        if origin is not None and rt.get("Array") is not None and origin in (rt["Array"], list):
+            return [self._sample_value(args[0], rt, _seen)]
+
+        if isinstance(target_type, type) and rt.get("CatalaEnum") and issubclass(target_type, rt["CatalaEnum"]):
+            # no generic marshalling on the way in (see _to_catala) -- already flagged in
+            # infer_manifest_schemas's warnings, left null here for manual filling-in
+            return None
+
+        if isinstance(target_type, type) and rt.get("CatalaStruct") and issubclass(target_type, rt["CatalaStruct"]):
+            _seen = _seen or set()
+            if target_type in _seen:
+                return {}  # break cycles in (mutually) recursive structs
+            _seen = _seen | {target_type}
+            hints = typing.get_type_hints(target_type)
+            field_hints = {k: v for k, v in hints.items() if k in target_type.fields}
+            return {
+                field.removesuffix("_in"): self._sample_value(field_type, rt, _seen)
+                for field, field_type in field_hints.items()
+            }
+
+        if target_type is rt.get("Money") or target_type is rt.get("Decimal"):
+            return 0
+        if target_type is rt.get("Integer"):
+            # not 0: Catala scopes routinely divide by an Integer count field
+            # (household size, number of shares, ...) -- a real sample should
+            # actually run rather than trip a legitimate division-by-zero.
+            return 1
+        if target_type is rt.get("Bool"):
+            return False
+        if target_type is rt.get("Date"):
+            return datetime.date.today().isoformat()
+
+        return None
+
     def _to_catala(self, value: Any, target_type: Any, rt: Dict[str, Any]) -> Any:
         origin = typing.get_origin(target_type)
         args = typing.get_args(target_type)
 
         if origin is not None and rt.get("Option") is not None and origin is rt["Option"]:
             return rt["Option"](None if value is None else self._to_catala(value, args[0], rt))
-        if origin is not None and rt.get("Array") is not None and origin is rt["Array"]:
+        # generated structs annotate list fields with typing.List[...] (origin `list`), not the
+        # runtime's own Array[...] (origin `rt["Array"]`) -- accept both.
+        if origin is not None and rt.get("Array") is not None and origin in (rt["Array"], list):
             if not isinstance(value, list):
                 raise ValueError(f"expected a list, got {type(value).__name__}")
             return rt["Array"]([self._to_catala(item, args[0], rt) for item in value])

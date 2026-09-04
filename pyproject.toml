@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Quentin Loridant", email = "quentin.loridant@protonmail.com" }
+    { name = "Quentin Loridant", email = "quentin.loridant.ext@numerique.gouv.fr" }
 ]
 requires-python = ">=3.13"
 dependencies = [
@@ -13,7 +13,9 @@ dependencies = [
     "jsonschema==4.26.0",
     "psycopg2-binary==2.9.12",
     "pydantic==2.9.0",
+    "pass-culture-rules",
     "python-dotenv==1.0.0",
+    "regalgo==0.0.3",
     "requests==2.32.0",
     "sqlalchemy==2.0.52",
     "uvicorn[standard]==0.22.0",
@@ -25,3 +27,16 @@ datapi = "datapi:main"
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+explicit = true
+
+[tool.uv.sources]
+regalgo = { index = "testpypi" }
+pass-culture-rules = { path = "examples/pass-culture-package", editable = true }
+
+[regalgo]
+
+

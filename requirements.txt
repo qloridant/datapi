@@ -7,3 +7,6 @@ sqlalchemy==2.0.52
 psycopg2-binary==2.9.12
 python-dotenv==1.0.0
 requests==2.32.0
+
+--extra-index-url https://test.pypi.org/simple/
+regalgo==0.0.3

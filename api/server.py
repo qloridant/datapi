@@ -1,7 +1,9 @@
+import json
 import os
 import uuid
 from fastapi import FastAPI, HTTPException, Header, Request, Depends
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from jsonschema import validate as js_validate, ValidationError
 from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
@@ -10,6 +12,9 @@ from adapters.catala_adapter import CatalaAdapter
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "test-token")
 
 app = FastAPI(title="Datapi POC")
+
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/admin", StaticFiles(directory=STATIC_DIR, html=True), name="admin")
 
 # Adapter registry: dispatch execution based on manifest.runtime.language.
 ADAPTERS = {
@@ -31,6 +36,27 @@ def require_auth(authorization: str | None = Header(default=None)):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/manifest-schema")
+def manifest_schema():
+    # served for the /admin console's client-side manifest validation helper
+    schema_path = os.path.join(os.path.dirname(__file__), "..", "catalog", "manifest.schema.json")
+    with open(schema_path) as f:
+        return json.load(f)
+
+@app.post("/catalog/infer-schema")
+def infer_schema(entrypoint: dict, token: str = Depends(require_auth)):
+    # helper for the /admin console: generate input_schema/output_schema from the
+    # compiled Catala module's own type hints, instead of hand-transcribing them.
+    if entrypoint.get("type") != "catala:scope":
+        raise HTTPException(status_code=400, detail="schema inference only supported for entrypoint.type 'catala:scope'")
+    target = entrypoint.get("target")
+    if not target:
+        raise HTTPException(status_code=400, detail="entrypoint.target required")
+    try:
+        return CatalaAdapter().infer_manifest_schemas(target)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/catalog/register")
 def register_manifest(manifest: dict, token: str = Depends(require_auth)):
