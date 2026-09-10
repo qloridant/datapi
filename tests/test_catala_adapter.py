@@ -1,5 +1,6 @@
 import json
 from adapters.catala_adapter import CatalaAdapter
+from catalog.manifest_loader import load_manifests
 from pathlib import Path
 
 def test_validate_input_and_execute():
@@ -74,8 +75,10 @@ def test_infer_manifest_schemas_matches_hand_written_manifest():
 def test_infer_manifest_schemas_handles_nested_structs_and_enums():
     # examples/prestagri: nested CatalaStruct, List[CatalaStruct] and, in the
     # output, a List[CatalaEnum] field (criteres_applicables) -- none of which
-    # examples/catala exercises.
-    manifest = json.loads(Path("examples/prestagri/manifest.json").read_text())
+    # examples/catala exercises. examples/prestagri/manifest.json is a package
+    # manifest (see catalog/manifest.schema.json's algorithms form); flatten it
+    # to get at the single aide-scolarite algorithm entry.
+    manifest = load_manifests("examples/prestagri/manifest.json")[0]
     target = manifest["entrypoint"]["target"]
     inferred = CatalaAdapter().infer_manifest_schemas(target)
     assert inferred["warnings"] == []

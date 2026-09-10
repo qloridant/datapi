@@ -1,0 +1,188 @@
+{
+  "org": "betagouv.prestagri",
+  "dct:source": {
+    "schema:codeRepository": "https://github.com/betagouv/prestagri/tree/478b3cc2ab28299c73b94fdd192b0559ae5873b8",
+    "schema:programmingLanguage": ["Python", "Catala"],
+    "schema:softwareVersion": "0.1.0"
+  },
+  "metadata_raw": {
+    "schema:name": "Prest'Agri - moteur de calcul",
+    "schema:description": "Backend FastAPI (Python) exposant des règles de droit codées en Catala (calcul du quotient familial et de l'aide à la scolarité), compilées en bibliothèque Python.",
+    "schema:runtimePlatform": [
+      "Python >= 3.13 (gestionnaire de paquets uv)",
+      "Catala 1.2.0 (compilateur OCaml, installé via opam ; build orchestré par clerk)"
+    ],
+    "schema:softwareRequirements": [
+      "fastapi[standard] >= 0.136.1",
+      "gmpy2 >= 2.3.0",
+      "pyyaml >= 6.0.3, < 7.0.0"
+    ],
+    "px:howTo": {
+      "@type": "schema:HowTo",
+      "schema:name": "Installer et exécuter Prest'Agri",
+      "schema:step": [
+        { "@type": "schema:HowToStep", "schema:name": "Installer les dépendances Python", "schema:text": "cd backend && uv install" },
+        { "@type": "schema:HowToStep", "schema:name": "Compiler les règles Catala vers Python", "schema:text": "cd catala && clerk build  # puis copier catala/_target/prestagri_catala/python/* vers backend/app/catala/generated (voir Taskfile.yml:update_backend_catala)" },
+        { "@type": "schema:HowToStep", "schema:name": "Lancer en développement", "schema:text": "cd backend && uv run fastapi dev" },
+        { "@type": "schema:HowToStep", "schema:name": "Lancer en production (comme sur Scalingo)", "schema:text": "cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000" },
+        { "@type": "schema:HowToStep", "schema:name": "Lancer les tests Catala", "schema:text": "cd catala && clerk test" }
+      ]
+    }
+  },
+  "algorithms": [
+    {
+      "id": "examples.sample.aide_scolarite_prestagri",
+      "version": "0.1.0",
+      "dct:identifier": "prestagri-aide-scolarite",
+      "name": "Aide à la scolarité (Prest'Agri)",
+      "description": "Real-world Catala algorithm vendored from Prest'Agri (https://github.com/betagouv/prestagri), used here to exercise CatalaAdapter beyond the toy examples/catala case: nested CatalaStruct fields (Menage -> List[FoyerFiscal]), an Option[Trajet] field, and List[CatalaEnum] outputs (criteres_applicables).",
+      "cv:hasChannel": {
+        "foaf:page": "https://api.prest-agri.beta.gouv.fr/aide_scolarite",
+        "dct:description": "Point d'accès HTTP GET, réponses JSON."
+      },
+      "dct:source": [
+        { "id": "https://github.com/betagouv/prestagri/blob/478b3cc2ab28299c73b94fdd192b0559ae5873b8/catala/src/aide_scolarite/aide_scolarite.catala_fr#CalculQuotientFamilialAideScolarite" },
+        { "id": "https://github.com/betagouv/prestagri/blob/478b3cc2ab28299c73b94fdd192b0559ae5873b8/catala/src/aide_scolarite/aide_scolarite.catala_fr#CalculPointsAideScolarite" },
+        { "id": "https://github.com/betagouv/prestagri/blob/478b3cc2ab28299c73b94fdd192b0559ae5873b8/catala/src/aide_scolarite/aide_scolarite.catala_fr#CalculAideScolarite" },
+        { "id": "https://github.com/betagouv/prestagri/blob/478b3cc2ab28299c73b94fdd192b0559ae5873b8/backend/app/api/default.py#read_quotient_familial_aide_scolarite" }
+      ],
+      "runtime": { "language": "catala", "version": "dev", "primary": true },
+      "entrypoint": { "type": "catala:scope", "target": "examples.prestagri.generated.Aide_scolarite:calcul_aide_scolarite" },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "foyer_fiscal_agent",
+          "etudiants_fiscalement_independants",
+          "trajet_depuis_domicile_agent",
+          "trajet_depuis_domicile_etudiant",
+          "montant_materiel_specifique",
+          "etudiant_en_filiere_post_bac"
+        ],
+        "properties": {
+          "foyer_fiscal_agent": {
+            "type": "object",
+            "required": ["beneficiaire_porteur_handicap", "garde_alternee", "parent_isole", "outre_mer", "membres_du_foyer"],
+            "properties": {
+              "beneficiaire_porteur_handicap": { "type": "boolean" },
+              "garde_alternee": { "type": "boolean", "title": "Garde alternée", "description": "L'agent a un ou des enfants en garde alternée." },
+              "parent_isole": { "type": "boolean", "title": "Parent isolé", "description": "L'agent est parent isolé au sens fiscal." },
+              "outre_mer": { "type": "boolean", "title": "Outre-mer", "description": "L'agent est affecté en outre-mer." },
+              "membres_du_foyer": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["revenu_fiscal_reference", "nombre_personnes"],
+                  "properties": {
+                    "revenu_fiscal_reference": { "type": "number" },
+                    "nombre_personnes": { "type": "integer" }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "etudiants_fiscalement_independants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["revenu_fiscal_reference", "nombre_personnes"],
+              "properties": {
+                "revenu_fiscal_reference": { "type": "number" },
+                "nombre_personnes": { "type": "integer" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "trajet_depuis_domicile_agent": {
+            "type": "object",
+            "required": ["distance_km", "duree_minutes"],
+            "properties": {
+              "distance_km": { "type": "integer" },
+              "duree_minutes": { "type": "integer" }
+            },
+            "additionalProperties": false
+          },
+          "trajet_depuis_domicile_etudiant": {
+            "type": ["object", "null"],
+            "required": ["distance_km", "duree_minutes"],
+            "properties": {
+              "distance_km": { "type": "integer" },
+              "duree_minutes": { "type": "integer" }
+            },
+            "additionalProperties": false
+          },
+          "montant_materiel_specifique": { "type": "number", "title": "Matériel spécifique", "description": "Montant des frais d'équipement scolaire obligatoire engagés, en euros." },
+          "etudiant_en_filiere_post_bac": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "revenu_fiscal_reference",
+          "nombre_personnes_vivants_au_foyer",
+          "nombre_unites",
+          "criteres_applicables_quotient_familial",
+          "quotient_familial",
+          "valeur_point",
+          "criteres_applicables",
+          "nb_points",
+          "aide_scolarite"
+        ],
+        "properties": {
+          "revenu_fiscal_reference": { "type": "number" },
+          "nombre_personnes_vivants_au_foyer": { "type": "number" },
+          "nombre_unites": { "type": "number" },
+          "criteres_applicables_quotient_familial": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["code", "payload"],
+              "properties": { "code": { "type": "string" }, "payload": {} }
+            }
+          },
+          "quotient_familial": { "type": "number" },
+          "valeur_point": { "type": "number" },
+          "criteres_applicables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["code", "payload"],
+              "properties": { "code": { "type": "string" }, "payload": {} }
+            }
+          },
+          "nb_points": { "type": "number" },
+          "aide_scolarite": { "type": "number" }
+        }
+      },
+      "resources": { "timeout_seconds": 10, "cpu": 0.2, "memory_bytes": 67108864 },
+      "source": [
+        "examples/prestagri/src/aide_scolarite/aide_scolarite.catala_fr",
+        "examples/prestagri/src/commun/quotient_familial.catala_fr",
+        "examples/prestagri/src/commun/structures/menage.catala_fr",
+        "examples/prestagri/src/commun/structures/foyer_fiscal.catala_fr",
+        "examples/prestagri/src/commun/structures/trajet.catala_fr"
+      ],
+      "sample_inputs": {
+        "foyer_fiscal_agent": {
+          "beneficiaire_porteur_handicap": true,
+          "garde_alternee": false,
+          "parent_isole": false,
+          "outre_mer": false,
+          "membres_du_foyer": [
+            { "revenu_fiscal_reference": 32600, "nombre_personnes": 4 }
+          ]
+        },
+        "etudiants_fiscalement_independants": [
+          { "revenu_fiscal_reference": 10000, "nombre_personnes": 1 }
+        ],
+        "trajet_depuis_domicile_agent": { "distance_km": 100, "duree_minutes": 20 },
+        "trajet_depuis_domicile_etudiant": null,
+        "montant_materiel_specifique": 1000,
+        "etudiant_en_filiere_post_bac": false
+      },
+      "tags": ["example", "catala", "prestagri"]
+    }
+  ]
+}

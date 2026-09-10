@@ -1,51 +1,102 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Algorithm Manifest",
-  "type": "object",
-  "required": ["id", "name", "runtime", "entrypoint", "input_schema", "output_schema"],
-  "properties": {
-    "id": { "type": "string" },
-    "version": { "type": "string", "default": "0.1.0" },
-    "name": { "type": "string" },
-    "description": { "type": "string" },
-    "org": { "type": "string" },
-    "runtime": {
+  "oneOf": [
+    { "$ref": "#/$defs/algorithm" },
+    { "$ref": "#/$defs/package" }
+  ],
+  "$defs": {
+    "algorithm": {
       "type": "object",
-      "required": ["language"],
+      "required": ["id", "name", "runtime", "entrypoint", "input_schema", "output_schema"],
       "properties": {
-        "language": { "type": "string" },
-        "version": { "type": "string" },
-        "primary": { "type": "boolean" }
-      }
+        "id": { "type": "string" },
+        "version": { "type": "string", "default": "0.1.0" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "org": { "type": "string" },
+        "runtime": {
+          "type": "object",
+          "required": ["language"],
+          "properties": {
+            "language": { "type": "string" },
+            "version": { "type": "string" },
+            "primary": { "type": "boolean" }
+          }
+        },
+        "entrypoint": {
+          "type": "object",
+          "required": ["type", "target"],
+          "properties": {
+            "type": { "type": "string" },
+            "target": { "type": "string" },
+            "build_artifact": { "type": "string" }
+          }
+        },
+        "input_schema": { "type": "object" },
+        "output_schema": { "type": "object" },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "timeout_seconds": { "type": "integer", "minimum": 1 },
+            "cpu": { "type": "number" },
+            "memory_bytes": { "type": "integer" }
+          }
+        },
+        "source": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "sample_inputs": { "type": "object" },
+        "license": { "type": ["string", "null"] },
+        "metadata_raw": { "type": "object" },
+        "security": { "type": "object" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+
+        "dct:identifier": { "type": "string" },
+        "cv:hasChannel": {
+          "type": "object",
+          "properties": {
+            "foaf:page": { "type": "string" },
+            "dct:description": { "type": "string" }
+          }
+        },
+        "dct:source": {
+          "description": "Algorithm-level dct:source: provenance links to the exact code (an array), mirroring the real metadata.jsonld's per-service dct:source. Distinct from the sibling 'source' property above, which lists local build paths used by adapters. NOTE: at package level (see $defs/package) the same 'dct:source' key instead holds a single object mirroring the aggregator's schema:SoftwareSourceCode node -- this shape difference is intentional, not an inconsistency.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": { "id": { "type": "string" } }
+          }
+        }
+      },
+      "additionalProperties": false
     },
-    "entrypoint": {
+    "package": {
       "type": "object",
-      "required": ["type", "target"],
+      "required": ["algorithms"],
       "properties": {
-        "type": { "type": "string" },
-        "target": { "type": "string" },
-        "build_artifact": { "type": "string" }
-      }
-    },
-    "input_schema": { "type": "object" },
-    "output_schema": { "type": "object" },
-    "resources": {
-      "type": "object",
-      "properties": {
-        "timeout_seconds": { "type": "integer", "minimum": 1 },
-        "cpu": { "type": "number" },
-        "memory_bytes": { "type": "integer" }
-      }
-    },
-    "source": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "sample_inputs": { "type": "object" },
-    "license": { "type": ["string", "null"] },
-    "metadata_raw": { "type": "object" },
-    "security": { "type": "object" },
-    "tags": { "type": "array", "items": { "type": "string" } }
-  },
-  "additionalProperties": false
+        "algorithms": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/algorithm" }
+        },
+        "org": { "type": "string" },
+        "license": { "type": ["string", "null"] },
+        "tags": { "type": "array", "items": { "type": "string" } },
+
+        "dct:source": {
+          "description": "Package-level dct:source: mirrors the real metadata.jsonld aggregator node, whose dct:source points to a single schema:SoftwareSourceCode object -- NOT an array of provenance links like the per-algorithm 'dct:source' in $defs/algorithm. Same key, different shape by design: the aggregator references one SoftwareSourceCode, each service references specific lines of code.",
+          "type": "object",
+          "properties": {
+            "schema:codeRepository": { "type": "string" },
+            "schema:programmingLanguage": { "type": "array", "items": { "type": "string" } },
+            "schema:softwareVersion": { "type": "string" }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

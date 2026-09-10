@@ -20,6 +20,15 @@ def run():
         ('tests.test_manifest_loader', 'test_fills_gaps_from_sibling_pyproject'),
         ('tests.test_manifest_loader', 'test_manifest_fields_take_precedence_over_pyproject'),
         ('tests.test_manifest_loader', 'test_no_sibling_pyproject_is_a_no_op'),
+        ('tests.test_manifest_loader', 'test_load_manifests_single_algorithm_is_unchanged'),
+        ('tests.test_manifest_loader', 'test_load_manifests_package_merges_shared_fields_with_algorithm_precedence'),
+        ('tests.test_manifest_loader', 'test_load_manifest_on_package_file_raises_explicit_error'),
+        ('tests.test_jsonld_converter', 'test_import_gap_fills_matched_entry_and_warns_about_unmatched_service'),
+        ('tests.test_jsonld_converter', 'test_import_never_overwrites_an_existing_field'),
+        ('tests.test_jsonld_converter', 'test_import_fills_nested_schema_titles_without_overwriting'),
+        ('tests.test_jsonld_converter', 'test_import_ambiguous_match_raises_value_error'),
+        ('tests.test_jsonld_converter', 'test_manifest_to_jsonld_round_trips_imported_fields'),
+        ('tests.test_jsonld_converter', 'test_manifest_to_jsonld_single_algorithm_has_no_aggregator'),
     ]:
         mod = importlib.import_module(module_name)
         try:

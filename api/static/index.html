@@ -404,10 +404,23 @@ function matchesJsonSchemaType(v, t) {
   }
 }
 
-// Structural check against catalog/manifest.schema.json: required + type (incl. union types),
-// nested properties/additionalProperties, array items. Covers what that schema actually uses
-// (no $ref/enum/oneOf), it is not a general-purpose JSON Schema validator.
+// catalog/manifest.schema.json is a root-level oneOf between $defs.algorithm and
+// $defs.package (single- vs multi-algorithm manifest); this console only ever edits
+// the single-algorithm form, so resolve to the branch matching the edited value's own
+// shape before walking it structurally below.
+function resolveManifestSchemaBranch(schema, value) {
+  if (!schema || !schema.$defs) return schema;
+  return (value && typeof value === 'object' && Array.isArray(value.algorithms))
+    ? schema.$defs.package
+    : schema.$defs.algorithm;
+}
+
+// Structural check against a resolved catalog/manifest.schema.json branch: required +
+// type (incl. union types), nested properties/additionalProperties, array items. Covers
+// what that schema actually uses (no $ref/enum within a branch), it is not a
+// general-purpose JSON Schema validator.
 function validateAgainstSchema(schema, value, path) {
+  schema = resolveManifestSchemaBranch(schema, value);
   const errors = [];
   (function walk(schema, value, path) {
     if (!schema || typeof schema !== 'object') return;

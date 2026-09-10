@@ -7,7 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from jsonschema import validate as js_validate, ValidationError
 from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
-from catalog.manifest_loader import enrich_with_pyproject_text
+from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_manifest
+from catalog.jsonld_converter import manifest_to_jsonld
 
 
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "test-token")
@@ -77,6 +78,15 @@ def enrich_from_pyproject(body: dict, token: str = Depends(require_auth)):
 
 @app.post("/catalog/register")
 def register_manifest(manifest: dict, token: str = Depends(require_auth)):
+    if "algorithms" in manifest:
+        entries = flatten_package_manifest(manifest)
+        ids = []
+        for entry in entries:
+            if "id" not in entry:
+                raise HTTPException(status_code=400, detail="each algorithms[] entry requires id")
+            MANIFEST_STORE[entry["id"]] = entry
+            ids.append(entry["id"])
+        return {"status": "registered", "ids": ids}
     if "id" not in manifest:
         raise HTTPException(status_code=400, detail="manifest.id required")
     MANIFEST_STORE[manifest["id"]] = manifest
@@ -88,6 +98,16 @@ def get_manifest(manifest_id: str, token: str = Depends(require_auth)):
     if not m:
         raise HTTPException(status_code=404, detail="manifest not found")
     return m
+
+@app.get("/catalog/{manifest_id}/metadata.jsonld")
+def manifest_metadata_jsonld(manifest_id: str, token: str = Depends(require_auth)):
+    # generates a single-service metadata.jsonld from the already-flattened
+    # stored entry -- reconstructing the original package's multi-service
+    # grouping at export time is future work, out of scope here.
+    m = MANIFEST_STORE.get(manifest_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="manifest not found")
+    return manifest_to_jsonld(m)
 
 # List manifest ids in the store
 @app.get("/catalog")

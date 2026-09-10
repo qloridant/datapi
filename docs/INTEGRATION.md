@@ -41,6 +41,143 @@ Les deux exemples fournis (`examples/python/manifest.json` et
 `examples/catala/manifest.json`) calculent le même « quotient familial » et
 peuvent servir de gabarit à copier.
 
+## Un dépôt qui expose plusieurs algorithmes : le manifeste « paquet »
+
+Un dépôt (typiquement une administration) peut exposer plusieurs services
+sous un même paquet de code — c'est le cas de
+[Prest'Agri](https://github.com/betagouv/prestagri), qui calcule à la fois
+une aide à la scolarité et un quotient familial. Plutôt que d'écrire un
+`manifest.json` par service, `catalog/manifest.schema.json` accepte aussi une
+forme **paquet** : champs partagés au niveau racine (`org`, `license`,
+`tags`, `dct:source`) + un tableau `algorithms`, chaque entrée ayant sa
+propre `id`/`entrypoint`/`input_schema`/`output_schema`, exactement comme un
+manifeste à un seul algorithme.
+
+```json
+{
+  "org": "betagouv.prestagri",
+  "license": "MIT",
+  "dct:source": {
+    "schema:codeRepository": "https://github.com/betagouv/prestagri",
+    "schema:programmingLanguage": ["Python", "Catala"],
+    "schema:softwareVersion": "0.1.0"
+  },
+  "algorithms": [
+    { "id": "prestagri.aide_scolarite", "dct:identifier": "prestagri-aide-scolarite", "...": "..." },
+    { "id": "prestagri.quotient_familial", "dct:identifier": "prestagri-quotient-familial", "...": "..." }
+  ]
+}
+```
+
+La forme à un seul algorithme (sans `algorithms`, comme
+`examples/python/manifest.json`) reste valide — pas de migration forcée,
+c'est le cas le plus simple à préférer tant qu'un dépôt n'expose qu'un seul
+service.
+
+- `catalog.manifest_loader.load_manifests(path)` charge un fichier des deux
+  formes et retourne toujours une liste d'entrées aplaties (fusion des
+  champs partagés dans chaque entrée — l'entrée l'emporte si elle définit
+  déjà le champ). `load_manifest(path)` (forme à un algorithme) lève une
+  erreur explicite si le fichier est en forme paquet.
+- `POST /catalog/register` détecte la forme paquet (`"algorithms" in
+  manifest`) et enregistre chaque entrée aplatie séparément ; la réponse
+  devient `{"status": "registered", "ids": [...]}` (au lieu d'un `id` seul).
+  L'exécution (`POST /execute/{id}`) est inchangée : chaque algorithme du
+  paquet est ensuite un manifeste normal dans le catalogue.
+
+### Vocabulaire CPSV-AP natif
+
+Trois champs optionnels, au niveau algorithme, reprennent directement les
+clés du [CPSV-AP](https://semiceu.github.io/CPSV-AP/releases/2.2.1/) utilisé
+par le catalogue national
+[regles.data.gouv.fr](https://github.com/datagouv/regles.data.gouv.fr)
+plutôt que d'inventer un vocabulaire Datapi à faire correspondre ensuite :
+
+| Champ | Rôle |
+|---|---|
+| `dct:identifier` | Identifiant du service au sens CPSV-AP (peut différer de `id`, qui est l'identifiant technique Datapi) |
+| `cv:hasChannel` | `{ "foaf:page": "...", "dct:description": "..." }` — le point d'accès (API) du service |
+| `dct:source` | Provenance : au niveau algorithme, un tableau `[{ "id": "<url>" }, ...]` de liens vers le code exact ; au niveau paquet, un objet unique (`schema:codeRepository`/`schema:programmingLanguage`/`schema:softwareVersion`) — même clé, forme différente selon le niveau, qui reproduit le nœud agrégateur du vrai `metadata.jsonld` (l'agrégateur référence un unique `schema:SoftwareSourceCode`, chaque service référence des lignes de code précises) |
+
+`name`/`description` ne sont pas renommés en `dct:title`/`dct:description` :
+ils existent déjà, sont utilisés ailleurs dans le repo (fallback
+pyproject.toml, docs, console admin) et correspondent sans ambiguïté à ces
+deux prédicats CPSV-AP.
+
+Convention pour `input_schema`/`output_schema` : `title`/`description` sont
+déjà des mots-clés JSON Schema natifs — les poser directement sur chaque
+propriété plutôt que dans une structure séparée ; c'est ce que
+`manifest_to_jsonld` (ci-dessous) lit pour peupler `cv:hasInput`/
+`cpsv:produces`.
+
+### Migrer une entrée regles.data.gouv.fr existante
+
+Si un service est déjà décrit par un `metadata.jsonld` CPSV-AP écrit à la
+main, `catalog.jsonld_converter.import_jsonld_into_manifest(manifest,
+jsonld_text)` gap-fill (jamais d'écrasement d'un champ déjà présent) les
+champs ci-dessus dans le manifeste Datapi, et retourne aussi une liste
+d'avertissements :
+
+```python
+from catalog.jsonld_converter import import_jsonld_into_manifest
+import json
+
+manifest = json.load(open("mon_org/manifest.json"))
+jsonld_text = open("mon_org/metadata.jsonld").read()  # récupéré depuis regles.data.gouv.fr, pas committé
+
+manifest, warnings = import_jsonld_into_manifest(manifest, jsonld_text)
+for w in warnings:
+    print("A traiter à la main:", w)
+
+json.dump(manifest, open("mon_org/manifest.json", "w"), indent=2, ensure_ascii=False)
+```
+
+C'est ce script, appliqué une fois au `metadata.jsonld` réel de Prest'Agri
+(2 services : `quotient-familial` et `aide-scolarite`), qui a produit la
+forme paquet de `examples/prestagri/manifest.json` — le `metadata.jsonld`
+d'origine n'est pas committé à côté (usage ponctuel), il vit comme fixture
+de test dans `tests/test_jsonld_converter.py`. Le service quotient-familial,
+n'ayant pas encore d'entrée `algorithms[]` correspondante, est ressorti dans
+`warnings` plutôt qu'ajouté avec un `entrypoint` inventé.
+
+- Chaque entrée `algorithms[i]` est appariée au service `cpsv:PublicService`
+  du `metadata.jsonld` dont le `dct:identifier` correspond ; si l'entrée n'a
+  pas encore de `dct:identifier` et qu'il ne reste qu'un seul service non
+  apparié, l'appariement se fait automatiquement. Dans tout autre cas
+  ambigu, une `ValueError` explicite est levée plutôt que de deviner.
+- Un service du `metadata.jsonld` qui ne correspond à aucune entrée
+  existante n'est **pas** ajouté automatiquement (pas d'`entrypoint`
+  inventable) : il remonte dans `warnings`, à ajouter à la main si ce
+  service doit devenir un algorithme Datapi séparé.
+- La marche est récursive dans `input_schema`/`output_schema` (à toute
+  profondeur) : chaque propriété dont le nom correspond à un `dct:identifier`
+  de `cv:hasInput`/`cpsv:produces` reçoit son `title`/`description`.
+
+### Publier vers regles.data.gouv.fr
+
+`catalog.jsonld_converter.manifest_to_jsonld(manifest)` fait l'inverse pour
+les champs modélisés : il génère un `metadata.jsonld` CPSV-AP à partir d'un
+manifeste (forme à un algorithme ou paquet), en dérivant `cv:hasInput`/
+`cpsv:produces` par aplatissement de `input_schema`/`output_schema`. Exposé
+via l'API pour un algorithme déjà enregistré :
+
+```sh
+curl -H "Authorization: Bearer $AUTH_TOKEN" \
+  http://127.0.0.1:8000/catalog/prestagri.aide_scolarite/metadata.jsonld
+```
+
+Cette route génère le `metadata.jsonld` du seul service demandé, à partir de
+l'entrée déjà aplatie dans le catalogue — reconstruire le regroupement
+multi-services d'origine (nœud agrégateur `dct:hasPart`) à l'export est une
+amélioration future, hors périmètre pour l'instant.
+
+Limite à connaître : l'aplatissement de `cv:hasInput`/`cpsv:produces` est
+keyé par nom de propriété, pas par chemin (comme l'import, à toute
+profondeur) — si `input_schema`/`output_schema` réutilise le même nom de
+propriété dans deux branches différentes (ex. `revenu_fiscal_reference` dans
+deux tableaux imbriqués distincts), le `metadata.jsonld` généré aura une
+entrée dupliquée par occurrence plutôt qu'une seule entrée dédupliquée.
+
 ## Intégrer un algorithme Python
 
 Adapter : [`adapters/python_adapter.py`](../adapters/python_adapter.py).
