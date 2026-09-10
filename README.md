@@ -8,6 +8,12 @@ Algorithms are run through per-language adapters (`adapters/`), selected from a 
 
 Pour intégrer votre propre algorithme (Python ou Catala) dans le catalogue, voir le guide [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
 
+Tests unitaires (`tests/`, adapters + catalogue, sans serveur HTTP) :
+
+```sh
+uv run pytest
+```
+
 ## Appeler une API enregistrée
 
 Toutes les routes du catalogue exigent un header `Authorization: Bearer <AUTH_TOKEN>` (voir `require_auth` dans `api/server.py`). Séquence typique : enregistrement d'un manifeste, puis exécution de l'algorithme qu'il décrit.
@@ -33,7 +39,7 @@ sequenceDiagram
     API-->>Client: 200 résultat d'exécution
 ```
 
-Exemple avec `requests` (voir `run_tests.py`) :
+Exemple avec `requests` (voir `scripts/smoke_test.py`) :
 
 ```python
 headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}

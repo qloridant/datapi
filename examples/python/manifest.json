@@ -10,14 +10,9 @@
     "type": "object",
     "required": ["agent_revenu", "agent_enfants"],
     "properties": {
-      "data": { 
-        "type": "object",
-        "properties": {
-          "date_naissance": { "type": "string"},
-          "departement": { "type": "string"}
-        }
-      },
-      "context": { "type": "integer" }
+      "agent_revenu": { "type": "number" },
+      "agent_enfants": { "type": "integer" },
+      "conjoint_revenu": { "type": "number" }
     },
     "additionalProperties": false
   },

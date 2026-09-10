@@ -1,9 +1,8 @@
 FROM python:3.13-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-RUN pip install --no-cache-dir -e examples/pass-culture-package
+RUN uv sync --frozen --no-install-project
 EXPOSE 8000
-CMD ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-sync", "uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000"]

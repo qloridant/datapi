@@ -1,13 +1,5 @@
 version: '3.8'
 services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: datapi
-      POSTGRES_PASSWORD: datapi
-      POSTGRES_DB: datapi
-    restart: unless-stopped
-
   api:
     build:
       context: .
@@ -17,14 +9,12 @@ services:
       - AUTH_TOKEN=test-token
     ports:
       - "8000:8000"
-    depends_on:
-      - postgres
 
   auth:
     build:
       context: .
       dockerfile: api/Dockerfile
-    command: ["uvicorn", "auth.server:app", "--host", "0.0.0.0", "--port", "9000"]
+    command: ["uv", "run", "--no-sync", "uvicorn", "auth.server:app", "--host", "0.0.0.0", "--port", "9000"]
     environment:
       - AUTH_TOKEN=test-token
     ports:

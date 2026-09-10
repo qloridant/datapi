@@ -39,4 +39,13 @@ pass-culture-rules = { path = "examples/pass-culture-package", editable = true }
 
 [regalgo]
 
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+# scoped to this project's own suite -- examples/pass-culture-package/tests
+# and external_repositories/ carry their own, separate test suites.
+testpaths = ["tests"]
 
