@@ -4,7 +4,7 @@ import uuid
 from fastapi import FastAPI, HTTPException, Header, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from jsonschema import validate as js_validate, ValidationError
+from jsonschema import validate, ValidationError
 from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
 from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_manifest
@@ -123,7 +123,7 @@ async def execute(manifest_id: str, request: Request, token: str = Depends(requi
     body = await request.json()
     # validate input_schema
     try:
-        js_validate(instance=body, schema=manifest["input_schema"])
+        validate(instance=body, schema=manifest["input_schema"])
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=f"input validation error: {e.message}")
     resources = manifest.get("resources", {})
