@@ -1,7 +1,7 @@
 import importlib
-import json
 import os
 import requests
+from catalog.manifest_loader import load_manifest
 
 # Must match the token the server checks in api/server.py's require_auth
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "test-token")
@@ -17,6 +17,9 @@ def run():
         ('tests.test_catala_adapter', 'test_missing_input_field_reports_failure_not_crash'),
         ('tests.test_catala_adapter', 'test_infer_manifest_schemas_matches_hand_written_manifest'),
         ('tests.test_catala_adapter', 'test_infer_manifest_schemas_handles_nested_structs_and_enums'),
+        ('tests.test_manifest_loader', 'test_fills_gaps_from_sibling_pyproject'),
+        ('tests.test_manifest_loader', 'test_manifest_fields_take_precedence_over_pyproject'),
+        ('tests.test_manifest_loader', 'test_no_sibling_pyproject_is_a_no_op'),
     ]:
         mod = importlib.import_module(module_name)
         try:
@@ -28,8 +31,7 @@ def run():
             print(f"ERROR: {module_name}.{test_name}:", type(e).__name__, e)
 
 def run_register_a_test_manifest(manifest_path:str):
-    with open(manifest_path, 'r') as file:
-        data = json.load(file)
+    data = load_manifest(manifest_path)
     response = requests.post('http://127.0.0.1:8000/catalog/register', json=data, headers=HEADERS)
     print(response.json())
 

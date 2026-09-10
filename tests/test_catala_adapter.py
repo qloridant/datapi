@@ -45,3 +45,60 @@ def test_missing_input_field_reports_failure_not_crash():
     manifest = json.loads(Path("examples/catala/manifest.json").read_text())
     res = adapter.validate_input(manifest, {"agent_revenu": 1000})
     assert not res["ok"]
+
+
+def test_infer_manifest_schemas_matches_hand_written_manifest():
+    # the generated schemas should be usable as drop-in replacements for the
+    # hand-written ones in examples/catala/manifest.json
+    manifest = json.loads(Path("examples/catala/manifest.json").read_text())
+    target = manifest["entrypoint"]["target"]
+    inferred = CatalaAdapter().infer_manifest_schemas(target)
+    assert inferred["warnings"] == []
+    assert set(inferred["input_schema"]["required"]) == set(manifest["input_schema"]["required"])
+    assert set(inferred["output_schema"]["required"]) == set(manifest["output_schema"]["required"])
+
+    manifest["input_schema"] = inferred["input_schema"]
+    manifest["output_schema"] = inferred["output_schema"]
+    out = CatalaAdapter().execute_sync(
+        manifest, "run1", {"agent_revenu": 32000, "agent_enfants": 2, "conjoint_revenu": 0},
+        exec_opts={"timeout_seconds": 10},
+    )
+    assert out["status"] == "success", out
+
+    # sample_inputs should itself be a valid, runnable input for the same scope.
+    assert set(inferred["sample_inputs"]) == set(manifest["input_schema"]["required"])
+    out = CatalaAdapter().execute_sync(manifest, "run2", inferred["sample_inputs"], exec_opts={"timeout_seconds": 10})
+    assert out["status"] == "success", out
+
+
+def test_infer_manifest_schemas_handles_nested_structs_and_enums():
+    # examples/prestagri: nested CatalaStruct, List[CatalaStruct] and, in the
+    # output, a List[CatalaEnum] field (criteres_applicables) -- none of which
+    # examples/catala exercises.
+    manifest = json.loads(Path("examples/prestagri/manifest.json").read_text())
+    target = manifest["entrypoint"]["target"]
+    inferred = CatalaAdapter().infer_manifest_schemas(target)
+    assert inferred["warnings"] == []
+
+    foyer = inferred["input_schema"]["properties"]["foyer_fiscal_agent"]
+    assert foyer["type"] == "object"
+    assert "membres_du_foyer" in foyer["required"]
+    membre_item = foyer["properties"]["membres_du_foyer"]["items"]
+    assert set(membre_item["required"]) == {"revenu_fiscal_reference", "nombre_personnes"}
+
+    criteres_item = inferred["output_schema"]["properties"]["criteres_applicables"]["items"]
+    assert set(criteres_item["required"]) == {"code", "payload"}
+
+    manifest["input_schema"] = inferred["input_schema"]
+    manifest["output_schema"] = inferred["output_schema"]
+    out = CatalaAdapter().execute_sync(manifest, "run1", manifest["sample_inputs"], exec_opts={"timeout_seconds": 10})
+    assert out["status"] == "success", out
+
+    # generated sample_inputs: options unwrapped to a real sample (not null), nested
+    # struct/array fields populated the same way, and it should itself execute cleanly.
+    trajet = inferred["sample_inputs"]["trajet_depuis_domicile_agent"]
+    assert trajet == {"distance_km": 1, "duree_minutes": 1}
+    membre = inferred["sample_inputs"]["foyer_fiscal_agent"]["membres_du_foyer"][0]
+    assert set(membre) == {"revenu_fiscal_reference", "nombre_personnes"}
+    out = CatalaAdapter().execute_sync(manifest, "run2", inferred["sample_inputs"], exec_opts={"timeout_seconds": 10})
+    assert out["status"] == "success", out

@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from jsonschema import validate as js_validate, ValidationError
 from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
+from catalog.manifest_loader import enrich_with_pyproject_text
 
 
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "test-token")
@@ -57,6 +58,22 @@ def infer_schema(entrypoint: dict, token: str = Depends(require_auth)):
         return CatalaAdapter().infer_manifest_schemas(target)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/catalog/enrich-from-pyproject")
+def enrich_from_pyproject(body: dict, token: str = Depends(require_auth)):
+    # helper for the /admin console: fill manifest.name/version/description/license/tags
+    # from a pyproject.toml's [project] table, mirroring catalog.manifest_loader.load_manifest
+    # for the manual-paste flow where there's no manifest.json file path to look next to.
+    manifest = body.get("manifest")
+    pyproject_toml = body.get("pyproject_toml")
+    if not isinstance(manifest, dict):
+        raise HTTPException(status_code=400, detail="body.manifest (object) required")
+    if not isinstance(pyproject_toml, str) or not pyproject_toml.strip():
+        raise HTTPException(status_code=400, detail="body.pyproject_toml (non-empty string) required")
+    try:
+        return enrich_with_pyproject_text(manifest, pyproject_toml)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"invalid pyproject.toml: {e}")
 
 @app.post("/catalog/register")
 def register_manifest(manifest: dict, token: str = Depends(require_auth)):

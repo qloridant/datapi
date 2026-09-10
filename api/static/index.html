@@ -214,6 +214,14 @@
       </div>
       <ul id="register-errors" class="msg" style="display:none; padding-left:18px; margin:4px 0 0"></ul>
       <div id="register-msg" class="msg"></div>
+
+      <div class="stack" style="margin-top:4px">
+        <span class="muted">Compléter depuis un pyproject.toml :</span>
+        <textarea id="pyproject-input" style="min-height:90px" placeholder='[project]&#10;name = "mon-package"&#10;version = "1.0.0"&#10;description = "..."&#10;license = { text = "MIT" }&#10;keywords = ["..."]'></textarea>
+        <div class="row">
+          <button class="ghost" id="enrich-pyproject-btn" title="Remplit name/version/description/license/tags manquants depuis [project], sans écraser ce que le manifeste précise déjà">Compléter les champs manquants</button>
+        </div>
+      </div>
     </div>
 
     <div class="panel stack">
@@ -515,6 +523,42 @@ async function inferSchema() {
   }
 }
 
+async function enrichFromPyproject() {
+  const msg = $('register-msg');
+  msg.textContent = '';
+  msg.className = 'msg';
+  showRegisterErrors([]);
+  let manifest;
+  try {
+    manifest = JSON.parse($('register-input').value);
+  } catch (e) {
+    msg.textContent = `JSON invalide: ${e.message}`;
+    msg.className = 'msg err';
+    return;
+  }
+  const pyprojectToml = $('pyproject-input').value;
+  if (!pyprojectToml.trim()) {
+    msg.textContent = 'Collez un pyproject.toml ci-dessus.';
+    msg.className = 'msg err';
+    return;
+  }
+  try {
+    const res = await fetch('/catalog/enrich-from-pyproject', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ manifest, pyproject_toml: pyprojectToml }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+    $('register-input').value = JSON.stringify(body, null, 2);
+    msg.textContent = "Champs manquants complétés depuis pyproject.toml (name/version/description/license/tags — sans écraser ceux déjà présents dans le manifeste).";
+    msg.className = 'msg ok';
+  } catch (e) {
+    msg.textContent = `Erreur: ${e.message}`;
+    msg.className = 'msg err';
+  }
+}
+
 document.querySelectorAll('[data-template]').forEach((btn) => {
   btn.onclick = () => {
     const tpl = MANIFEST_TEMPLATES[btn.dataset.template];
@@ -592,6 +636,7 @@ $('refresh-catalog').onclick = refreshCatalog;
 $('register-btn').onclick = registerManifest;
 $('validate-btn').onclick = validateRegisterInput;
 $('infer-schema-btn').onclick = inferSchema;
+$('enrich-pyproject-btn').onclick = enrichFromPyproject;
 $('execute-btn').onclick = executeManifest;
 
 $('token').value = getToken();
