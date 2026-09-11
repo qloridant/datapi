@@ -34,7 +34,7 @@
       "id": "examples.sample.aide_scolarite_prestagri",
       "version": "0.1.0",
       "dct:identifier": "prestagri-aide-scolarite",
-      "name": "Aide à la scolarité (Prest'Agri)",
+      "dct:title": "Aide à la scolarité (Prest'Agri)",
       "description": "Real-world Catala algorithm vendored from Prest'Agri (https://github.com/betagouv/prestagri), used here to exercise CatalaAdapter beyond the toy examples/catala case: nested CatalaStruct fields (Menage -> List[FoyerFiscal]), an Option[Trajet] field, and List[CatalaEnum] outputs (criteres_applicables).",
       "cv:hasChannel": {
         "foaf:page": "https://api.prest-agri.beta.gouv.fr/aide_scolarite",

@@ -152,8 +152,8 @@ def import_jsonld_into_manifest(manifest: Dict[str, Any], jsonld_text: str) -> T
 
     for entry, node in matches:
         title = node.get("dct:title", node.get("title"))
-        if "name" not in entry and title is not None:
-            entry["name"] = _scalar(title)
+        if "dct:title" not in entry and title is not None:
+            entry["dct:title"] = _scalar(title)
         description = node.get("dct:description", node.get("description"))
         if "description" not in entry and description is not None:
             entry["description"] = _scalar(description)
@@ -315,7 +315,7 @@ def _algorithm_to_service_node(algorithm: Dict[str, Any]) -> Dict[str, Any]:
         "@id": identifier,
         "@type": "cpsv:PublicService",
         "dct:identifier": identifier,
-        "dct:title": algorithm.get("name"),
+        "dct:title": algorithm.get("dct:title"),
         "dct:description": algorithm.get("description"),
         "cv:hasInput": _flatten_to_field_nodes(algorithm.get("input_schema")),
         "cpsv:produces": _flatten_to_field_nodes(algorithm.get("output_schema")),

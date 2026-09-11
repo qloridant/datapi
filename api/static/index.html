@@ -206,7 +206,7 @@
         <button class="ghost" data-template="python-regalgo">Python (regalgo)</button>
         <button class="ghost" data-template="catala-scope">Catala (scope)</button>
       </div>
-      <textarea id="register-input" placeholder='{"id": "mon.algo", "name": "...", "runtime": {"language": "python"}, ...}'></textarea>
+      <textarea id="register-input" placeholder='{"id": "mon.algo", "dct:title": "...", "runtime": {"language": "python"}, ...}'></textarea>
       <div class="row">
         <button class="ghost" id="validate-btn">Valider</button>
         <button class="ghost" id="infer-schema-btn" title="Génère input_schema/output_schema/sample_inputs depuis le module Catala compilé (entrypoint.type: catala:scope)">Générer input/output_schema + sample_inputs (Catala)</button>
@@ -219,7 +219,7 @@
         <span class="muted">Compléter depuis un pyproject.toml :</span>
         <textarea id="pyproject-input" style="min-height:90px" placeholder='[project]&#10;name = "mon-package"&#10;version = "1.0.0"&#10;description = "..."&#10;license = { text = "MIT" }&#10;keywords = ["..."]'></textarea>
         <div class="row">
-          <button class="ghost" id="enrich-pyproject-btn" title="Remplit name/version/description/license/tags manquants depuis [project], sans écraser ce que le manifeste précise déjà">Compléter les champs manquants</button>
+          <button class="ghost" id="enrich-pyproject-btn" title="Remplit dct:title/version/description/license/tags manquants depuis [project], sans écraser ce que le manifeste précise déjà">Compléter les champs manquants</button>
         </div>
       </div>
     </div>
@@ -323,7 +323,7 @@ const MANIFEST_TEMPLATES = {
   'python-class': {
     note: "La classe cible doit exposer run(self, data: dict) -> dict.",
     manifest: {
-      id: "monorg.mon_algo", version: "0.1.0", name: "Mon algorithme", description: "", org: "monorg",
+      id: "monorg.mon_algo", version: "0.1.0", "dct:title": "Mon algorithme", description: "", org: "monorg",
       runtime: { language: "python", version: "3.11", primary: true },
       entrypoint: { type: "python:class", target: "monorg.mon_algo:MonAlgo" },
       input_schema: { type: "object", required: ["x"], properties: { x: { type: "number" } }, additionalProperties: false },
@@ -334,7 +334,7 @@ const MANIFEST_TEMPLATES = {
   'python-function': {
     note: "La fonction cible doit avoir la signature f(data: dict) -> dict.",
     manifest: {
-      id: "monorg.mon_algo", version: "0.1.0", name: "Mon algorithme", description: "", org: "monorg",
+      id: "monorg.mon_algo", version: "0.1.0", "dct:title": "Mon algorithme", description: "", org: "monorg",
       runtime: { language: "python", version: "3.11", primary: true },
       entrypoint: { type: "python:function", target: "monorg.mon_algo:mon_algo" },
       input_schema: { type: "object", required: ["x"], properties: { x: { type: "number" } }, additionalProperties: false },
@@ -345,7 +345,7 @@ const MANIFEST_TEMPLATES = {
   'python-regalgo': {
     note: "La classe cible doit être conforme à regalgo : compute(AlgoInput) -> AlgoResult. Pas de wrapper nécessaire, entrypoint.target pointe directement dessus.",
     manifest: {
-      id: "monorg.mon_algo", version: "0.1.0", name: "Mon algorithme", description: "", org: "monorg",
+      id: "monorg.mon_algo", version: "0.1.0", "dct:title": "Mon algorithme", description: "", org: "monorg",
       runtime: { language: "python", version: "3.11", primary: true },
       entrypoint: { type: "python:regalgo_class", target: "monorg.mon_algo.regles:MonAlgo" },
       input_schema: {
@@ -364,7 +364,7 @@ const MANIFEST_TEMPLATES = {
   'catala-scope': {
     note: "target = module_généré_par_catala:fonction_de_scope. La compilation Catala (catala/clerk) doit avoir eu lieu en amont, hors Datapi.",
     manifest: {
-      id: "monorg.mon_algo_catala", version: "0.1.0", name: "Mon algorithme (Catala)", description: "", org: "monorg",
+      id: "monorg.mon_algo_catala", version: "0.1.0", "dct:title": "Mon algorithme (Catala)", description: "", org: "monorg",
       runtime: { language: "catala", version: "dev", primary: true },
       entrypoint: { type: "catala:scope", target: "monorg.generated.MonAlgo:mon_scope" },
       input_schema: { type: "object", required: [], properties: {}, additionalProperties: false },
@@ -564,7 +564,7 @@ async function enrichFromPyproject() {
     const body = await res.json();
     if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
     $('register-input').value = JSON.stringify(body, null, 2);
-    msg.textContent = "Champs manquants complétés depuis pyproject.toml (name/version/description/license/tags — sans écraser ceux déjà présents dans le manifeste).";
+    msg.textContent = "Champs manquants complétés depuis pyproject.toml (dct:title/version/description/license/tags — sans écraser ceux déjà présents dans le manifeste).";
     msg.className = 'msg ok';
   } catch (e) {
     msg.textContent = `Erreur: ${e.message}`;

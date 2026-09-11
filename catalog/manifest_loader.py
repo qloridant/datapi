@@ -5,8 +5,10 @@ from typing import Any, Dict, List
 
 # Manifest fields that can be filled in from the sibling pyproject.toml's
 # [project] table when the manifest omits them. The manifest wins whenever
-# it sets a field itself; pyproject.toml only covers the gaps.
-_FALLBACK_FIELDS = ("name", "version", "description")
+# it sets a field itself; pyproject.toml only covers the gaps. Keyed by
+# manifest field name -> pyproject [project] field name, since "dct:title"
+# has no PEP 621 equivalent name to match directly (unlike version/description).
+_FALLBACK_FIELDS = {"dct:title": "name", "version": "version", "description": "description"}
 
 
 def _project_license(project: Dict[str, Any]) -> str | None:
@@ -22,9 +24,9 @@ def enrich_with_pyproject_text(manifest: Dict[str, Any], pyproject_text: str) ->
     """Fill manifest metadata gaps from a pyproject.toml's [project] table (as raw text)."""
     project = tomllib.loads(pyproject_text).get("project", {})
 
-    for field in _FALLBACK_FIELDS:
-        if field not in manifest and field in project:
-            manifest[field] = project[field]
+    for manifest_field, project_field in _FALLBACK_FIELDS.items():
+        if manifest_field not in manifest and project_field in project:
+            manifest[manifest_field] = project[project_field]
 
     if "license" not in manifest:
         license_ = _project_license(project)

@@ -1,7 +1,7 @@
 {
   "id": "examples.sample.quotient_familial_catala",
   "version": "0.1.0",
-  "name": "Example Quotient Familial (Catala)",
+  "dct:title": "Example Quotient Familial (Catala)",
   "description": "POC sample algorithm implemented in Catala (https://catala-lang.org/), compiled to Python. Same computation as examples/python for comparison.",
   "org": "local.examples",
   "runtime": { "language": "catala", "version": "dev", "primary": true },

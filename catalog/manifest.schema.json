@@ -8,11 +8,10 @@
   "$defs": {
     "algorithm": {
       "type": "object",
-      "required": ["id", "name", "runtime", "entrypoint", "input_schema", "output_schema"],
+      "required": ["id", "dct:title", "runtime", "entrypoint", "input_schema", "output_schema"],
       "properties": {
         "id": { "type": "string" },
         "version": { "type": "string", "default": "0.1.0" },
-        "name": { "type": "string" },
         "description": { "type": "string" },
         "org": { "type": "string" },
         "runtime": {
@@ -54,6 +53,7 @@
         "tags": { "type": "array", "items": { "type": "string" } },
 
         "dct:identifier": { "type": "string" },
+        "dct:title": { "type": "string" },
         "cv:hasChannel": {
           "type": "object",
           "properties": {

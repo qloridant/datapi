@@ -29,7 +29,7 @@ Champs requis (voir le schéma complet) :
 | Champ | Rôle |
 |---|---|
 | `id` | Identifiant unique dans le catalogue, utilisé dans l'URL `/execute/{id}` |
-| `name`, `description`, `org` | Métadonnées d'affichage |
+| `dct:title`, `description`, `org` | Métadonnées d'affichage |
 | `runtime.language` | `"python"` ou `"catala"` — sélectionne l'adapter (`api/server.py`, dict `ADAPTERS`) |
 | `entrypoint.type` / `entrypoint.target` | Comment charger et appeler le code (détails ci-dessous par langage) |
 | `input_schema` / `output_schema` | JSON Schema. `input_schema` est validé par l'API (`api/server.py`) **et** par l'adapter avant chaque exécution |
@@ -214,7 +214,7 @@ comme `examples/python/`).
 ```json
 {
   "id": "monorg.mon_algo",
-  "name": "Mon algorithme",
+  "dct:title": "Mon algorithme",
   "org": "monorg",
   "runtime": { "language": "python", "version": "3.11", "primary": true },
   "entrypoint": { "type": "python:class", "target": "monorg.mon_algo:MonAlgo" },
@@ -316,7 +316,7 @@ sortie `generated/` qui n'a pas de dépendance pip au-delà de la stdlib.
 ```json
 {
   "id": "monorg.mon_algo_catala",
-  "name": "Mon algorithme (Catala)",
+  "dct:title": "Mon algorithme (Catala)",
   "org": "monorg",
   "runtime": { "language": "catala", "version": "dev", "primary": true },
   "entrypoint": { "type": "catala:scope", "target": "monorg.generated.MonAlgo:mon_scope" },

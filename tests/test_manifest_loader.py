@@ -26,7 +26,7 @@ def test_fills_gaps_from_sibling_pyproject():
 
         manifest = load_manifest(tmp / "manifest.json")
 
-        assert manifest["name"] == "sample-rules"
+        assert manifest["dct:title"] == "sample-rules"
         assert manifest["version"] == "1.2.3"
         assert manifest["description"] == "Sample rules package"
         assert manifest["license"] == "MIT"
@@ -38,7 +38,7 @@ def test_manifest_fields_take_precedence_over_pyproject():
         tmp = Path(tmp)
         (tmp / "manifest.json").write_text(json.dumps({
             "id": "examples.sample.explicit_metadata",
-            "name": "Manifest Name",
+            "dct:title": "Manifest Name",
             "runtime": {"language": "python", "version": "3.13"},
             "entrypoint": {"type": "python:class", "target": "examples.python.sample_algorithm:SampleQuotientFamilial"},
             "input_schema": {"type": "object"},
@@ -52,19 +52,19 @@ def test_manifest_fields_take_precedence_over_pyproject():
 
         manifest = load_manifest(tmp / "manifest.json")
 
-        assert manifest["name"] == "Manifest Name"
+        assert manifest["dct:title"] == "Manifest Name"
         assert manifest["version"] == "1.2.3"
 
 
 def test_no_sibling_pyproject_is_a_no_op():
     manifest = load_manifest("examples/python/manifest.json")
-    assert manifest["name"] == "Example Quotient Familial (Python)"
+    assert manifest["dct:title"] == "Example Quotient Familial (Python)"
 
 
 def _algorithm_entry(id_, **overrides):
     entry = {
         "id": id_,
-        "name": f"Algo {id_}",
+        "dct:title": f"Algo {id_}",
         "runtime": {"language": "python", "version": "3.13"},
         "entrypoint": {"type": "python:function", "target": "mod:fn"},
         "input_schema": {"type": "object"},

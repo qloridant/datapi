@@ -146,7 +146,7 @@ def test_import_gap_fills_matched_entry_and_warns_about_unmatched_service():
     )
 
     entry = package["algorithms"][0]
-    assert entry["name"] == "Calcul de l'aide à la scolarité"
+    assert entry["dct:title"] == "Calcul de l'aide à la scolarité"
     assert entry["description"].startswith("Calcule le montant de l'aide à la scolarité")
     assert entry["cv:hasChannel"] == {
         "foaf:page": "https://api.prest-agri.beta.gouv.fr/aide_scolarite",
@@ -162,10 +162,10 @@ def test_import_gap_fills_matched_entry_and_warns_about_unmatched_service():
 
 def test_import_never_overwrites_an_existing_field():
     package, _ = import_jsonld_into_manifest(
-        _original_aide_scolarite_package(name="Nom déjà présent"), REAL_PRESTAGRI_METADATA_JSONLD
+        _original_aide_scolarite_package(**{"dct:title": "Nom déjà présent"}), REAL_PRESTAGRI_METADATA_JSONLD
     )
 
-    assert package["algorithms"][0]["name"] == "Nom déjà présent"
+    assert package["algorithms"][0]["dct:title"] == "Nom déjà présent"
 
 
 def test_import_fills_nested_schema_titles_without_overwriting():
