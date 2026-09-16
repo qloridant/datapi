@@ -1,7 +1,7 @@
 {
   "id": "examples.sample.quotient_familial",
   "version": "0.1.0",
-  "name": "Example Quotient Familial (Python)",
+  "dct:title": "Example Quotient Familial (Python)",
   "description": "POC sample algorithm implemented in Python",
   "org": "local.examples",
   "runtime": { "language": "python", "version": "3.11", "primary": true },

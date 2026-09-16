@@ -165,6 +165,27 @@
   .msg.err { color: var(--err); }
   .full-width { grid-column: 1 / -1; }
   .muted { color: var(--muted); }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+  .tab-btn {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    border-radius: 6px 6px 0 0;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--bg); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -199,8 +220,12 @@
   </section>
 
   <section class="stack">
-    <div class="panel stack">
-      <h2>Enregistrer un manifeste</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab-btn" id="tab-btn-register" role="tab" data-tab="register">Enregistrer un manifeste</button>
+      <button class="tab-btn" id="tab-btn-execute" role="tab" data-tab="execute">Exécuter</button>
+    </div>
+
+    <div class="panel stack tab-panel" id="tab-panel-register" role="tabpanel">
       <div class="row" style="flex-wrap:wrap">
         <span class="muted">Partir d'un modèle :</span>
         <button class="ghost" data-template="python-regalgo">Python (regalgo)</button>
@@ -224,8 +249,7 @@
       </div>
     </div>
 
-    <div class="panel stack">
-      <h2>Exécuter</h2>
+    <div class="panel stack tab-panel" id="tab-panel-execute" role="tabpanel">
       <div class="row">
         <input id="execute-id" placeholder="id du manifeste" list="manifest-ids">
         <datalist id="manifest-ids"></datalist>
@@ -289,6 +313,20 @@ async function refreshCatalog() {
   }
 }
 
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach((el) => {
+    el.hidden = el.id !== `tab-panel-${name}`;
+  });
+  document.querySelectorAll('.tab-btn').forEach((el) => {
+    el.classList.toggle('active', el.dataset.tab === name);
+  });
+  localStorage.setItem('datapi_active_tab', name);
+}
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+  btn.onclick = () => showTab(btn.dataset.tab);
+});
+showTab(localStorage.getItem('datapi_active_tab') || 'register');
+
 async function showManifest(id, liEl) {
   document.querySelectorAll('#manifest-list li').forEach((el) => el.classList.remove('active'));
   if (liEl) liEl.classList.add('active');
@@ -309,6 +347,7 @@ async function showManifest(id, liEl) {
         loadSampleBtn.onclick = () => {
           $('execute-id').value = id;
           $('execute-input').value = JSON.stringify(body.sample_inputs, null, 2);
+          showTab('execute');
         };
       }
     }
