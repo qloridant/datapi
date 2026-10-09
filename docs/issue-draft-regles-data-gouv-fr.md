@@ -4,11 +4,11 @@
 
 ---
 
-**Title:** Accept a unified Datapi-style manifest (single or multi-algorithm) as an alternative to a hand-written metadata.jsonld
+**Title:** Adopt Datapi's manifest (single or multi-algorithm) as the one file format for registering services — no metadata.jsonld, no converter
 
 ## Context
 
-[Datapi](https://github.com/<org>/datapi) registers algorithms via a
+[Datapi](https://github.com/datagouv/datapi) registers algorithms via a
 `manifest.json` (`entrypoint`, `input_schema`/`output_schema`, etc.). To also
 register on regles.data.gouv.fr, teams currently write a second file by
 hand: `metadata.jsonld`, in CPSV-AP.
@@ -21,19 +21,33 @@ services (here: `quotient-familial` and `aide-scolarite`). Datapi's
 per file.
 
 We extended Datapi's manifest format to support both cardinalities natively
-(`catalog/manifest.schema.json`, `catalog/jsonld_converter.py`) and to use
-CPSV-AP vocabulary directly (`dct:identifier`, `cv:hasChannel`, `dct:source`)
-instead of inventing Datapi-only field names that would need translating.
-This issue proposes regles.data.gouv.fr accept that same manifest as an
-ingestion input, so a repo maintains one file instead of two.
+(`catalog/manifest.schema.json`) and, wherever a term already exists in
+CPSV-AP/DCAT, to name the field with that term directly —
+`dct:identifier`, `cv:hasChannel`, `dct:source` — instead of inventing a
+Datapi-only synonym that something would later have to translate. Fields
+stay Datapi-specific only where no core vocabulary covers them: `runtime`,
+`entrypoint`, `resources` describe *how to execute* the algorithm, which is
+outside CPSV-AP's scope.
+
+This issue proposes regles.data.gouv.fr read that manifest directly as its
+ingestion input, so there is exactly **one file, in one format**, understood
+natively by both sides — not two files kept in sync by a converter. We
+deliberately don't want a `metadata.jsonld`-shaped adapter/export step
+sitting between the two systems: every predicate the manifest can express in
+CPSV-AP terms, it expresses that way already, so there's nothing left for a
+conversion layer to do except the one mapping that's unavoidable because no
+vocabulary substitutes for it — turning JSON Schema (`input_schema`/
+`output_schema`) into `cv:hasInput`/`cpsv:produces`. That mapping belongs in
+regles.data.gouv.fr's ingestion code as a direct read of the manifest, not as
+a separate file-to-file conversion step.
 
 ## Worked example: examples/prestagri/
 
 [`examples/prestagri/manifest.json`](../examples/prestagri/manifest.json) is
-Prest'Agri's real `metadata.jsonld`, migrated once via
-`catalog.jsonld_converter.import_jsonld_into_manifest` and re-shaped into a
-Datapi package manifest (shared `org`/`dct:source` at the top, one entry per
-algorithm under `algorithms`):
+Prest'Agri's real `metadata.jsonld`, one-time-migrated into a Datapi package
+manifest (shared `org`/`dct:source` at the top, one entry per algorithm
+under `algorithms`) that carries the same CPSV-AP predicates directly —
+after this migration, `metadata.jsonld` is retired, not kept in sync:
 
 ```json
 {
@@ -47,7 +61,7 @@ algorithm under `algorithms`):
     {
       "id": "examples.sample.aide_scolarite_prestagri",
       "dct:identifier": "prestagri-aide-scolarite",
-      "name": "Aide à la scolarité (Prest'Agri)",
+      "dct:title": "Aide à la scolarité (Prest'Agri)",
       "cv:hasChannel": {
         "foaf:page": "https://api.prest-agri.beta.gouv.fr/aide_scolarite",
         "dct:description": "Point d'accès HTTP GET, réponses JSON."
@@ -70,59 +84,47 @@ left it out rather than fabricating an `entrypoint` for it — it surfaced as
 a warning instead: `service 'prestagri-quotient-familial' present in
 metadata.jsonld but no matching algorithm entry`.)
 
-`catalog.jsonld_converter.manifest_to_jsonld` derives a `metadata.jsonld`
-back from that same manifest (exposed as `GET
-/catalog/{id}/metadata.jsonld`):
+Reading that manifest, regles.data.gouv.fr's ingestion already has
+`dct:identifier`, `dct:title`, `cv:hasChannel`, and `dct:source` as plain
+fields — no JSON-LD node lookup, no `@context` resolution, nothing to parse
+beyond the manifest itself. (`id` stays Datapi-only and distinct from
+`dct:identifier` — it's the technical handle used for routing and execution,
+e.g. `/execute/{id}`, not a public-service identifier.) The one thing it
+still has to compute
+is `cv:hasInput`/`cpsv:produces`, by flattening `input_schema`/
+`output_schema` (plain JSON Schema, which has no CPSV-AP equivalent to read
+off directly):
 
 ```json
-{
-  "@id": "prestagri-aide-scolarite",
-  "@type": "cpsv:PublicService",
-  "dct:identifier": "prestagri-aide-scolarite",
-  "dct:title": "Aide à la scolarité (Prest'Agri)",
-  "cv:hasChannel": {
-    "foaf:page": "https://api.prest-agri.beta.gouv.fr/aide_scolarite",
-    "dct:description": "Point d'accès HTTP GET, réponses JSON."
-  },
-  "dct:source": [
-    { "id": "https://github.com/betagouv/prestagri/blob/.../aide_scolarite.catala_fr#CalculAideScolarite" }
-  ],
-  "cv:hasInput": [ "...derived from input_schema..." ],
-  "cpsv:produces": [ "...derived from output_schema..." ]
-}
+"cv:hasInput": [ "...derived from input_schema..." ],
+"cpsv:produces": [ "...derived from output_schema..." ]
 ```
 
-`dct:identifier`/`dct:title`/`cv:hasChannel`/`dct:source` round-trip exactly
-against the original file's `service-aide-scolarite` node.
-`cv:hasInput`/`cpsv:produces` are freshly derived from `input_schema`/
-`output_schema` and don't match the original hand-written parameter list
-1:1 in this case — Prest'Agri's public HTTP API takes higher-level inputs
-(`agent_revenu`, `adresse_agent`, ...) than the raw Catala scope vendored
-into Datapi (`foyer_fiscal_agent`, `trajet_depuis_domicile_agent`, ...); the
-derivation is name-keyed, not path-keyed, so a schema that reuses a leaf
-property name in two branches produces one `cv:hasInput` entry per
-occurrence rather than a deduplicated one.
+That derivation doesn't match the original hand-written `metadata.jsonld`
+parameter list 1:1 in this case — Prest'Agri's public HTTP API takes
+higher-level inputs (`agent_revenu`, `adresse_agent`, ...) than the raw
+Catala scope vendored into Datapi (`foyer_fiscal_agent`,
+`trajet_depuis_domicile_agent`, ...); it's name-keyed, not path-keyed, so a
+schema that reuses a leaf property name in two branches produces one
+`cv:hasInput` entry per occurrence rather than a deduplicated one.
 
-## Two options (B recommended as the starting point)
+## Proposal
 
-**Option A — accept generated JSON-LD, no schema change.** Ingestion keeps
-accepting `metadata.jsonld` exactly as today; the only change is that a repo
-may generate it with `manifest_to_jsonld` instead of writing it by hand. No
-work needed on regles.data.gouv.fr's side beyond documenting this path.
+Ingestion accepts a Datapi-shaped manifest (single-algorithm or
+`algorithms[]` package) as the *only* registration input. No
+`metadata.jsonld`, hand-written or generated, and no converter/adapter
+translating one file into the other — every CPSV-AP-expressible field is
+already named with its CPSV-AP predicate in the manifest, so ingestion reads
+it as-is; only the JSON Schema → `cv:hasInput`/`cpsv:produces` flattening
+above is genuinely new logic, because no vocabulary already covers "the
+shape of these input/output parameters."
 
-**Option B — accept the unified manifest directly.** Ingestion accepts a
-Datapi-shaped manifest (single-algorithm or `algorithms[]` package) and
-derives `cv:hasInput`/`cpsv:produces` itself by flattening
-`input_schema`/`output_schema` (same algorithm as `manifest_to_jsonld`) —
-no separate output file to generate or keep in sync anywhere, for either
-side.
+This does mean regles.data.gouv.fr takes on that one flattening step (and
+its edge cases, like the name-collision caveat above) instead of it living
+in Datapi. In exchange there is exactly one file format end-to-end, and nothing
+downstream of it to keep in sync.
 
-Option B removes one moving part end-to-end, at the cost of
-regles.data.gouv.fr taking on the JSON Schema → CPSV-AP derivation itself
-(and its edge cases, like the name-collision caveat above). Option A is
-zero-risk for regles.data.gouv.fr and available immediately since it only
-changes how the existing input format gets produced.
-
-Happy to share `catalog/jsonld_converter.py`'s conversion logic (~250
-lines, no dependencies beyond the stdlib) if useful as a starting point for
-either option.
+Happy to share the ~40 lines this flattening takes in
+`catalog/jsonld_converter.py` (`_flatten_to_field_nodes` /
+`_algorithm_to_service_node`) as a reference if useful — not as a dependency
+to adopt, just worked logic to start from.

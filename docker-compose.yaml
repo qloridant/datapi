@@ -7,8 +7,21 @@ services:
     environment:
       - DATABASE_URL=postgresql://datapi:datapi@postgres:5432/datapi
       - AUTH_TOKEN=test-token
+      # France Connect Integration Mode Configuration
+      - FRANCECONNECT_CLIENT_ID=${FRANCECONNECT_CLIENT_ID:-}
+      - FRANCECONNECT_CLIENT_SECRET=${FRANCECONNECT_CLIENT_SECRET:-}
+      - FC_AUTHORIZATION_URL=${FC_AUTHORIZATION_URL:-https://fcp-low.sbx.dev-franceconnect.fr/api/v2/authorize}
+      - FC_TOKEN_URL=${FC_TOKEN_URL:-https://fcp-low.sbx.dev-franceconnect.fr/api/v2/token}
+      - FC_USERINFO_URL=${FC_USERINFO_URL:-https://fcp-low.sbx.dev-franceconnect.fr/api/v2/userinfo}  
+      - FC_REDIRECT_URI=${FC_REDIRECT_URI:-http://localhost:8000/user/auth/fc/callback}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
     ports:
       - "8000:8000"
+    # For development: mount static files for live reload
+    volumes:
+      - ./api/static:/app/api/static:ro
+      - ./user:/app/user:ro
+      - ./config:/app/config:ro
 
   auth:
     build:

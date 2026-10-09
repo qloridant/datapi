@@ -69,6 +69,39 @@
             "required": ["id"],
             "properties": { "id": { "type": "string" } }
           }
+        },
+        "franceconnect_mapping": {
+          "type": "object",
+          "description": "Mapping between France Connect claims and algorithm input fields. Uses hybrid approach: global defaults + per-algorithm overrides.",
+          "properties": {
+            "mappings": {
+              "type": "object",
+              "description": "Mapping rules per input field. Key is JSON path in input_schema (e.g., 'data.age'), value is FC source path, a reference to default mapping (e.g., '$default.age'), or null for manual input.",
+              "additionalProperties": {
+                "oneOf": [
+                  { "type": "string", "description": "FC claim path (e.g., 'birthdate') or default mapping reference (e.g., '$default.age')" },
+                  { "type": "null", "description": "Field must be provided manually by user" },
+                  {
+                    "type": "object",
+                    "description": "Extended mapping configuration",
+                    "properties": {
+                      "source": { "type": ["string", "null"], "description": "FC claim path (e.g., 'claims.birthdate') or null" },
+                      "transform": { "type": "string", "description": "Name of transformation function (e.g., 'date_to_age')" },
+                      "default": { "description": "Default value if FC data not available" },
+                      "label": { "type": "string", "description": "Human-readable label for the field" },
+                      "required": { "type": "boolean", "description": "Whether field is required (default: true)" }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "default_mapping_ref": {
+              "type": "string",
+              "description": "Reference to default mapping configuration name (e.g., 'default_v1'). If omitted, uses global defaults."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -94,6 +127,34 @@
             "schema:programmingLanguage": { "type": "array", "items": { "type": "string" } },
             "schema:softwareVersion": { "type": "string" }
           }
+        },
+        "franceconnect_mapping": {
+          "type": "object",
+          "description": "Default France Connect mapping for all algorithms in this package. Individual algorithms can override.",
+          "properties": {
+            "mappings": {
+              "type": "object",
+              "description": "Default mapping rules for the package. Same structure as algorithm-level franceconnect_mapping.mappings.",
+              "additionalProperties": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": { "type": ["string", "null"] },
+                      "transform": { "type": "string" },
+                      "default": { },
+                      "label": { "type": "string" },
+                      "required": { "type": "boolean" }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

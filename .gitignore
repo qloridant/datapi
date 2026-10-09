@@ -6,5 +6,9 @@ dist/
 wheels/
 *.egg-info
 
+# IA
+.claude
+.vibe
+
 # Virtual environments
 .venv

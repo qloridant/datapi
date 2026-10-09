@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datapi - Mes algorithmes publics</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #dde1e6;
+    --text: #1b1f24;
+    --muted: #6b7280;
+    --accent: #000091;
+    --accent-hover: #1a1a6e;
+    --ok: #15803d;
+    --err: #b91c1c;
+    --warning: #ffc107;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+  }
+  
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: var(--panel);
+  }
+  
+  header h1 {
+    font-size: 18px;
+    margin: 0;
+    font-weight: 600;
+  }
+  
+  header .subtitle {
+    color: var(--muted);
+    font-size: 12.5px;
+    margin-top: 2px;
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  
+  .user-details {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .user-name {
+    font-weight: 500;
+    font-size: 14px;
+  }
+  
+  .user-email {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  
+  .logout-btn {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .logout-btn:hover {
+    background: var(--bg);
+  }
+  
+  main {
+    padding: 24px 28px;
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  @media (min-width: 900px) {
+    main {
+      grid-template-columns: 350px 1fr;
+      gap: 24px;
+    }
+  }
+  
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  
+  .panel h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin: 0 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .pivot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  
+  .pivot-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .pivot-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  
+  .pivot-value {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 6px 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  
+  .pivot-value.empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+  
+  .algorithms-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  
+  .algorithms-count {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  
+  .algorithm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .algorithm-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  
+  .algorithm-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .algorithm-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  
+  .algorithm-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text);
+    margin: 0;
+  }
+  
+  .algorithm-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  
+  .algorithm-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .algorithm-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  
+  .algorithm-status.fc-mapped {
+    background: #d4edda;
+    color: #155724;
+  }
+  
+  .algorithm-status.no-fc {
+    background: #fff3cd;
+    color: #856404;
+  }
+  
+  .algorithm-status.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  
+  .algorithm-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  
+  .tag {
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  
+  .algorithm-description {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+  
+  .execute-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    align-self: flex-start;
+  }
+  
+  .execute-btn:hover {
+    background: var(--accent-hover);
+  }
+  
+  .loading {
+    padding: 40px;
+    color: var(--muted);
+    text-align: center;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+  
+  .empty-state h3 {
+    margin: 0 0 8px;
+    color: var(--text);
+  }
+  
+  .refresh-btn {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  
+  .refresh-btn:hover {
+    background: var(--bg);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Mes algorithmes publics</h1>
+    <p class="subtitle">Datapi - Exécutez des algorithmes avec vos données</p>
+  </div>
+  <div class="user-info">
+    <div class="user-avatar">QU</div>
+    <div class="user-details">
+      <span class="user-name" id="user-name">Utilisateur</span>
+      <span class="user-email" id="user-email">Chargement...</span>
+    </div>
+    <a href="/user/logout" class="logout-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Déconnexion
+    </a>
+  </div>
+</header>
+
+<main>
+  <!-- Left sidebar: Pivot data -->
+  <section class="panel">
+    <div class="algorithms-header">
+      <h2>Mes données pivots</h2>
+      <button class="refresh-btn" id="refresh-pivot">↻ Rafraîchir</button>
+    </div>
+    <div id="pivot-data">Chargement des données...</div>
+  </section>
+
+  <!-- Right content: Algorithms -->
+  <section class="panel">
+    <div class="algorithms-header">
+      <h2>Algorithmes disponibles</h2>
+      <span class="algorithms-count" id="algorithms-count">0 algorithme(s)</span>
+    </div>
+    <div id="algorithm-list">Chargement des algorithmes...</div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// API helper
+async function apiGet(endpoint, options = {}) {
+  const res = await fetch(endpoint, {
+    credentials: 'include',
+    ...options
+  });
+  if (!res.ok) {
+    if (res.status === 401) {
+      window.location.href = '/user/login';
+      return null;
+    }
+    throw new Error(`API error: ${res.status}`);
+  }
+  return res.json();
+}
+
+// Load pivot data
+async function loadPivotData() {
+  const container = $('pivot-data');
+  try {
+    const data = await apiGet('/user/pivot');
+    const pivot = data.pivot_data;
+    
+    if (!pivot || Object.keys(pivot).length === 0) {
+      container.innerHTML = '<p class="empty-state">Aucune donnée pivot disponible</p>';
+      return;
+    }
+    
+    // Build pivot grid
+    const grid = document.createElement('div');
+    grid.className = 'pivot-grid';
+    
+    for (const [key, value] of Object.entries(pivot)) {
+      const item = document.createElement('div');
+      item.className = 'pivot-item';
+      
+      const label = document.createElement('span');
+      label.className = 'pivot-label';
+      label.textContent = key.replace(/_/g, ' ');
+      
+      const val = document.createElement('span');
+      val.className = 'pivot-value' + (value === null || value === undefined ? ' empty' : '');
+      val.textContent = value !== null && value !== undefined ? String(value) : '—';
+      
+      item.appendChild(label);
+      item.appendChild(val);
+      grid.appendChild(item);
+    }
+    
+    container.innerHTML = '';
+    container.appendChild(grid);
+    
+    // Update user info in header
+    const fullName = pivot.full_name || pivot.given_name + ' ' + pivot.family_name || 'Utilisateur';
+    const email = pivot.email || '';
+    $('user-name').textContent = fullName;
+    $('user-email').textContent = email || 'Aucun email';
+    
+  } catch (e) {
+    container.innerHTML = `<p class="empty-state">Erreur: ${e.message}</p>`;
+  }
+}
+
+// Load algorithms
+async function loadAlgorithms() {
+  const container = $('algorithm-list');
+  const countEl = $('algorithms-count');
+  
+  try {
+    const data = await apiGet('/user/catalog');
+    const algorithms = data.algorithms || [];
+    
+    countEl.textContent = `${algorithms.length} algorithme(s)`;
+    
+    if (algorithms.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <h3>Aucun algorithme disponible</h3>
+          <p>Les algorithmes publiés apparaitront ici.</p>
+        </div>
+      `;
+      return;
+    }
+    
+    const list = document.createElement('div');
+    list.className = 'algorithm-list';
+    
+    for (const algo of algorithms) {
+      const card = document.createElement('div');
+      card.className = 'algorithm-card';
+      card.onclick = () => window.location.href = `/user/execute/${encodeURIComponent(algo.id)}`;
+      
+      const header = document.createElement('div');
+      header.className = 'algorithm-header';
+      
+      const titleDiv = document.createElement('div');
+      const title = document.createElement('h3');
+      title.className = 'algorithm-title';
+      title.textContent = algo.title || algo.id;
+      
+      const algoId = document.createElement('span');
+      algoId.className = 'algorithm-id';
+      algoId.textContent = algo.id;
+      
+      titleDiv.appendChild(title);
+      titleDiv.appendChild(algoId);
+      
+      const meta = document.createElement('div');
+      meta.className = 'algorithm-meta';
+      
+      // FC mapping status
+      const fcStatus = document.createElement('span');
+      fcStatus.className = 'algorithm-status ' + (algo.has_fc_mapping ? 'fc-mapped' : 'no-fc');
+      fcStatus.innerHTML = '<span class="algorithm-status dot"></span>' + 
+        (algo.has_fc_mapping ? 'FC Mapping' : 'Pas de mapping FC');
+      
+      // Tags
+      if (algo.tags && algo.tags.length > 0) {
+        const tags = document.createElement('div');
+        tags.className = 'algorithm-tags';
+        for (const tag of algo.tags) {
+          const tagEl = document.createElement('span');
+          tagEl.className = 'tag';
+          tagEl.textContent = tag;
+          tags.appendChild(tagEl);
+        }
+        meta.appendChild(tags);
+      }
+      
+      meta.appendChild(fcStatus);
+      
+      header.appendChild(titleDiv);
+      header.appendChild(meta);
+      
+      const desc = document.createElement('p');
+      desc.className = 'algorithm-description';
+      desc.textContent = algo.description || 'Aucune description';
+      
+      const executeBtn = document.createElement('button');
+      executeBtn.className = 'execute-btn';
+      executeBtn.textContent = 'Exécuter';
+      executeBtn.onclick = (e) => {
+        e.stopPropagation();
+        window.location.href = `/user/execute/${encodeURIComponent(algo.id)}`;
+      };
+      
+      card.appendChild(header);
+      card.appendChild(desc);
+      card.appendChild(executeBtn);
+      list.appendChild(card);
+    }
+    
+    container.innerHTML = '';
+    container.appendChild(list);
+    
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state"><h3>Erreur</h3><p>${e.message}</p></div>`;
+  }
+}
+
+// Refresh handlers
+$('refresh-pivot').onclick = () => {
+  loadPivotData();
+};
+
+// Initial load
+loadPivotData();
+loadAlgorithms();
+
+// Refresh every 5 minutes
+setInterval(() => {
+  loadPivotData();
+  loadAlgorithms();
+}, 5 * 60 * 1000);
+</script>
+
+</body>
+</html>

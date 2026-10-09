@@ -1,0 +1,208 @@
+# France Connect Mapping Configuration
+# Version: 1.0
+# Description: Default mappings and transformations for France Connect claims to algorithm inputs
+
+# ============================================================================
+# DEFAULT MAPPINGS
+# ============================================================================
+# These are the default mappings from France Connect claims to standardized field names.
+# Algorithms can reference these using the $default.<field_name> syntax in their manifest.
+# Format: <standardized_field_name>: <fc_claim_path> | transform:<transform_function>
+# Example: age: claims.birthdate | transform:date_to_age
+
+default_mappings:
+  # --- Identity fields ---
+  age: claims.birthdate | transform:date_to_age
+  birthdate: claims.birthdate
+  given_name: claims.given_name
+  family_name: claims.family_name
+  full_name: claims.given_name + " " + claims.family_name | transform:join_strings
+  gender: claims.gender
+  
+  # --- Address fields ---
+  postal_code: claims.address.postal_code
+  department: claims.address.postal_code | transform:postal_code_to_department
+  city: claims.address.city
+  address: claims.address.formatted
+  country: claims.address.country
+  
+  # --- Contact fields ---
+  email: claims.email
+  phone: claims.phone
+  
+  # --- Status fields ---
+  identity_provider: claims.identity_provider
+  identity_level: claims.identity_level
+  
+  # --- Extended attributes (may not be available in integration mode) ---
+  birthplace: claims.birthplace
+  nationality: claims.nationality
+  nir: claims.nir  # Numéro de sécurité sociale - SENSIBLE
+  siret: claims.siret  # For professionals - SENSIBLE
+
+
+# ============================================================================
+# TRANSFORMATION FUNCTIONS
+# ============================================================================
+# Python functions that can be referenced in mappings.
+# These are executed by the backend mapping engine.
+# Each function receives the raw FC value and returns the transformed value.
+
+transforms:
+  # --- Date transformations ---
+  date_to_age:
+    description: "Convert ISO date string (YYYY-MM-DD) to integer age"
+    code: |
+      from datetime import datetime
+      def transform(value: str) -> int:
+          if not value:
+              return None
+          birth = datetime.fromisoformat(value)
+          today = datetime.now()
+          age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+          return max(0, age)
+
+  date_to_iso:
+    description: "Ensure date is in ISO format (YYYY-MM-DD)"
+    code: |
+      from datetime import datetime
+      def transform(value: str) -> str:
+          if not value:
+              return None
+          try:
+              dt = datetime.fromisoformat(value)
+              return dt.strftime('%Y-%m-%d')
+          except:
+              return value
+
+  # --- Geographic transformations ---
+  postal_code_to_department:
+    description: "Extract department code from French postal code (first 2 digits)"
+    code: |
+      def transform(value: str) -> str:
+          if not value or not isinstance(value, str):
+              return None
+          # Handle overseas departments (97x, 98x)
+          if value.startswith('97') or value.startswith('98'):
+              return value[:3]  # 971, 972, 973, 974, 976, 98x
+          # Metropolitan France
+          return value[:2] if len(value) >= 2 else value
+
+  # --- String transformations ---
+  join_strings:
+    description: "Join multiple string values with a separator"
+    code: |
+      def transform(*values: str, separator: str = " ") -> str:
+          return separator.join(filter(None, values))
+
+  normalize_string:
+    description: "Normalize string: trim, lowercase, replace accents"
+    code: |
+      import unicodedata
+      def transform(value: str) -> str:
+          if not value:
+              return None
+          # Normalize unicode (NFKD decomposes accents)
+          normalized = unicodedata.normalize('NFKD', value)
+          # Remove accents and lowercase
+          normalized = ''.join(c for c in normalized if not unicodedata.combining(c)).lower()
+          return normalized.strip()
+
+  # --- Boolean transformations ---
+  string_to_boolean:
+    description: "Convert string values ('true', '1', 'yes') to boolean"
+    code: |
+      def transform(value: str) -> bool:
+          if isinstance(value, bool):
+              return value
+          if isinstance(value, str):
+              return value.lower() in ('true', '1', 'yes', 'y', 'oui', 'o')
+          return bool(value)
+
+
+# ============================================================================
+# FRANCE CONNECT CONFIGURATION (Integration Mode)
+# ============================================================================
+# Configuration for France Connect integration environment
+
+franceconnect:
+  # Integration mode settings
+  environment: "integration"
+  
+  # OAuth2/OIDC configuration for integration
+  auth:
+    # These are typical for FC integration - adjust based on your provider
+    authorization_url: "https://fcp-low.sbx.dev-franceconnect.fr/api/v2/authorize"
+    token_url: "https://fcp-low.sbx.dev-franceconnect.fr/api/v2/token"
+    userinfo_url: "https://fcp-low.sbx.dev-franceconnect.fr/api/v2/userinfo"
+    jwks_uri: "https://fcp-low.sbx.dev-franceconnect.fr/api/v2/.well-known/jwks.json"
+    
+    # Client credentials (to be configured via environment variables)
+    client_id_env: "FRANCECONNECT_CLIENT_ID"
+    client_secret_env: "FRANCECONNECT_CLIENT_SECRET"
+    
+    # Redirect URIs
+    redirect_uri: "http://localhost:8000/user/auth/fc/callback"
+    
+    # Scopes to request
+    scopes:
+      - "openid"
+      - "profile"
+      - "email"
+      - "address"
+      - "phone"
+    
+    # Required claims for user identification
+    required_claims:
+      - "sub"  # Unique identifier
+      - "given_name"
+      - "family_name"
+      - "birthdate"
+
+  # Claim mappings from FC token to our standardized format
+  # This is the raw mapping before any algorithm-specific transformations
+  claim_mappings:
+    sub: claims.sub
+    given_name: claims.given_name
+    family_name: claims.family_name
+    birthdate: claims.birthdate
+    gender: claims.gender
+    email: claims.email
+    phone: claims.phone
+    address:
+      formatted: claims.address.formatted
+      street_address: claims.address.street_address
+      locality: claims.address.locality
+      region: claims.address.region
+      postal_code: claims.address.postal_code
+      country: claims.address.country
+    identity_provider: claims.identity_provider
+    identity_level: claims.identity_level
+    amr: claims.amr  # Authentication methods used
+
+  # Session configuration
+  session:
+    cookie_name: "fc_session"
+    cookie_secure: false  # Set to true in production with HTTPS
+    cookie_httponly: true
+    cookie_max_age: 3600  # 1 hour
+    
+  # User data storage (for pivot data)
+  user_data:
+    # Fields to store as pivot data (available to all algorithms)
+    pivot_fields:
+      - "sub"
+      - "given_name"
+      - "family_name"
+      - "birthdate"
+      - "age"
+      - "email"
+      - "postal_code"
+      - "department"
+      - "identity_provider"
+    
+    # Encryption settings for sensitive data
+    encrypt_sensitive: true
+    sensitive_fields:
+      - "nir"
+      - "siret"
