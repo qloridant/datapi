@@ -1,5 +1,4 @@
 [env]
-
 DATABASE_URL="postgresql://datapi:datapi@postgres:5432/datapi"
 AUTH_TOKEN="test-token"
 FRANCECONNECT_CLIENT_ID=""
@@ -18,7 +17,6 @@ description = "Installe l'environnement Python et les dépendances du projet"
 run = "uv sync"
 
 [tasks.start]
-
 description = "Démarre l'API en local avec rechargement automatique (http://127.0.0.1:8000)"
 run = "uv run --no-sync uvicorn api.server:app --reload --host 127.0.0.1 --port 8000"
 
