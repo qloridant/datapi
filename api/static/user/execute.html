@@ -4,493 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Datapi - Exécuter un algorithme</title>
-<style>
-  :root {
-    color-scheme: light;
-    --bg: #f5f6f8;
-    --panel: #ffffff;
-    --border: #dde1e6;
-    --text: #1b1f24;
-    --muted: #6b7280;
-    --accent: #000091;
-    --accent-hover: #1a1a6e;
-    --ok: #15803d;
-    --err: #b91c1c;
-    --warning: #ffc107;
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
-  }
-  
-  header {
-    padding: 20px 28px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-    background: var(--panel);
-  }
-  
-  header h1 {
-    font-size: 18px;
-    margin: 0;
-    font-weight: 600;
-  }
-  
-  header .subtitle {
-    color: var(--muted);
-    font-size: 12.5px;
-    margin-top: 2px;
-  }
-  
-  .back-link {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--accent);
-    text-decoration: none;
-    font-size: 13px;
-    padding: 8px 14px;
-    border-radius: 6px;
-  }
-  
-  .back-link:hover {
-    background: var(--bg);
-  }
-  
-  .back-link svg {
-    width: 14px;
-    height: 14px;
-  }
-  
-  main {
-    padding: 24px 28px;
-    max-width: 1200px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-  
-  @media (min-width: 900px) {
-    main {
-      grid-template-columns: 350px 1fr;
-      gap: 24px;
-    }
-  }
-  
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
-  }
-  
-  .panel h2 {
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: var(--muted);
-    margin: 0 0 16px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-  }
-  
-  .algo-info {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .algo-title {
-    font-size: 18px;
-    font-weight: 600;
-    margin: 0;
-  }
-  
-  .algo-id {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--muted);
-  }
-  
-  .algo-description {
-    font-size: 14px;
-    color: var(--muted);
-    line-height: 1.5;
-    margin: 0;
-  }
-  
-  .algo-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 12px;
-  }
-  
-  .algo-meta-row {
-    display: flex;
-    gap: 8px;
-  }
-  
-  .algo-meta-label {
-    color: var(--muted);
-    min-width: 100px;
-  }
-  
-  .algo-meta-value {
-    font-family: var(--mono);
-  }
-  
-  .form-container {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .form-section {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .form-section h3 {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    margin: 0;
-  }
-  
-  .form-section .description {
-    font-size: 12px;
-    color: var(--muted);
-  }
-  
-  .field-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  
-  .field-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  
-  .field-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text);
-  }
-  
-  .field-label .required {
-    color: var(--err);
-    margin-left: 4px;
-  }
-  
-  .field-hint {
-    font-size: 11px;
-    color: var(--muted);
-    font-style: italic;
-  }
-  
-  .field-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-  }
-  
-  .field-status.fc-filled {
-    background: #d4edda;
-    color: #155724;
-  }
-  
-  .field-status.manual {
-    background: #fff3cd;
-    color: #856404;
-  }
-  
-  .field-status.consent-required {
-    background: #f8d7da;
-    color: #721c24;
-  }
-  
-  .field-status.dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-  }
-  
-  .consent-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-  }
-  
-  .consent-toggle input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--accent);
-  }
-  
-  input[type="text"],
-  input[type="number"],
-  input[type="email"],
-  input[type="date"],
-  select,
-  textarea {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    padding: 10px 12px;
-    font-family: var(--mono);
-    font-size: 13px;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  
-  input:focus,
-  select:focus,
-  textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(0, 0, 145, 0.2);
-  }
-  
-  input:disabled,
-  select:disabled,
-  textarea:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  
-  input.readonly,
-  select.readonly,
-  textarea.readonly {
-    background: var(--panel);
-    border-style: dashed;
-  }
-  
-  select {
-    cursor: pointer;
-  }
-  
-  textarea {
-    min-height: 80px;
-    resize: vertical;
-  }
-  
-  .boolean-field {
-    display: flex;
-    gap: 12px;
-    padding: 10px 0;
-  }
-  
-  .boolean-option {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  
-  .boolean-option input[type="radio"] {
-    accent-color: var(--accent);
-  }
-  
-  .array-field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px 0;
-  }
-  
-  .array-item {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-  }
-  
-  .array-item input,
-  .array-item select {
-    flex: 1;
-  }
-  
-  .add-array-item-btn {
-    background: transparent;
-    color: var(--accent);
-    border: 1px dashed var(--border);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 12px;
-    cursor: pointer;
-    align-self: flex-start;
-  }
-  
-  .add-array-item-btn:hover {
-    background: var(--bg);
-  }
-  
-  .remove-array-item-btn {
-    background: transparent;
-    color: var(--err);
-    border: none;
-    cursor: pointer;
-    padding: 4px;
-    line-height: 1;
-  }
-  
-  .remove-array-item-btn:hover {
-    text-decoration: line-through;
-  }
-  
-  .object-field {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 10px 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-  }
-  
-  .object-field .field-group {
-    padding-left: 12px;
-    padding-right: 12px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 12px;
-  }
-  
-  .object-field .field-group:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-    margin-bottom: 0;
-  }
-  
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-    margin-top: 16px;
-  }
-  
-  .btn {
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    border: none;
-    transition: background-color 0.15s, transform 0.1s;
-  }
-  
-  .btn:active {
-    transform: scale(0.98);
-  }
-  
-  .btn-primary {
-    background: var(--accent);
-    color: white;
-  }
-  
-  .btn-primary:hover {
-    background: var(--accent-hover);
-  }
-  
-  .btn-secondary {
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
-  
-  .btn-secondary:hover {
-    background: var(--panel);
-  }
-  
-  .btn-danger {
-    background: #dc3545;
-    color: white;
-  }
-  
-  .btn-danger:hover {
-    background: #c82333;
-  }
-  
-  .results {
-    display: none;
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .results h3 {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0;
-  }
-  
-  .results pre {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 16px;
-    font-family: var(--mono);
-    font-size: 12px;
-    overflow-x: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-  
-  .result-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-  }
-  
-  .result-status.ok {
-    background: #d4edda;
-    color: #155724;
-  }
-  
-  .result-status.err {
-    background: #f8d7da;
-    color: #721c24;
-  }
-  
-  .error-message {
-    background: #f8d7da;
-    border: 1px solid #f5c6cb;
-    border-radius: 6px;
-    padding: 12px;
-    color: #721c24;
-    font-size: 13px;
-    display: none;
-  }
-  
-  .error-message.active {
-    display: block;
-  }
-</style>
+<link rel="stylesheet" href="/static/styles/communs.css">
 </head>
 <body>
 
@@ -530,10 +44,22 @@
       </div>
     </form>
     
-    <div id="results" class="results">
+   <div id="results" class="results">
       <h3>Résultat</h3>
       <div id="result-status" class="result-status"></div>
-      <pre id="result-output"></pre>
+      <a id="result-redirect" class="redirect-card" href="#" target="_blank" rel="noopener" hidden>
+          <span class="btn btn-primary redirect-card-btn">Démarrer la démarche</span>
+          <span class="redirect-card-body">
+          <span id="result-redirect-url" class="redirect-card-url"></span>
+        </span>
+      </a>
+
+      <div id="result-value" class="result-card" hidden></div>
+
+      <details id="result-details" class="result-details" hidden>
+        <summary>Détails techniques</summary>
+        <pre id="result-output"></pre>
+      </details>
     </div>
   </section>
 </main>
@@ -577,6 +103,19 @@ const FIELD_TYPES = {
   array: 'array',
   object: 'object'
 };
+
+// input.value is always a string, even for type="number": convert raw form
+// values to the JSON type the schema expects before storing them in formData.
+function coerceFormValue(type, raw) {
+  if (type === 'number' || type === 'integer') {
+    if (raw === '' || raw === null || raw === undefined) {
+      return null;
+    }
+    const n = Number(raw);
+    return Number.isNaN(n) ? null : n;
+  }
+  return raw;
+}
 
 // Current manifest ID (from URL)
 const manifestId = window.location.pathname.split('/').pop();
@@ -640,21 +179,41 @@ function buildForm() {
     groups[topLevel].push(field);
   }
   
+  // Per-group display info: separates user data from rule context
+  const GROUP_INFO = {
+    data: {
+      label: 'Vos données',
+      description: 'Données utilisées pour le calcul. Les champs provenant de France Connect sont pré-remplis.'
+    },
+    context: {
+      label: 'Contexte de la règle',
+      description: 'Paramètres fixés par la règle (dates, seuils réglementaires) — ce ne sont pas vos données personnelles. Les valeurs par défaut sont proposées, vous pouvez les ajuster.'
+    }
+  };
+
   // Create a form section for each group
   for (const [groupName, fields] of Object.entries(groups)) {
+    const info = GROUP_INFO[groupName] || { label: groupName.replace(/_/g, ' ') };
     const section = document.createElement('div');
-    section.className = 'form-section';
-    
+    section.className = 'form-section' + (groupName === 'context' ? ' context-section' : '');
+
     const header = document.createElement('h3');
-    header.textContent = groupName.replace(/_/g, ' ');
+    header.textContent = info.label;
     section.appendChild(header);
-    
+
+    if (info.description) {
+      const desc = document.createElement('p');
+      desc.className = 'description';
+      desc.textContent = info.description;
+      section.appendChild(desc);
+    }
+
     // Add fields to section
     for (const field of fields) {
       const fieldGroup = createFieldGroup(field);
       section.appendChild(fieldGroup);
     }
-    
+
     container.appendChild(section);
   }
   
@@ -688,13 +247,18 @@ function createFieldGroup(field) {
   const status = document.createElement('span');
   if (field.has_fc_value) {
     status.className = 'field-status fc-filled';
-    status.innerHTML = '<span class="field-status dot"></span>FC';
-  } else if (!field.consented && field.required) {
+    status.innerHTML = 'Donnée récupérée : France Connect';
+  } else if (field.mapping != null && !field.consented && field.required) {
+    // FC-mapped field without value yet: consent may be needed
     status.className = 'field-status consent-required';
-    status.innerHTML = '<span class="field-status dot"></span>Consentement requis';
+    status.innerHTML = 'Consentement requis';
+  } else if (field.mapping == null && field.value !== null && field.value !== undefined) {
+    // Unmapped field (rule context) pre-filled from its schema default
+    status.className = 'field-status default-value';
+    status.innerHTML = 'Valeur par défaut';
   } else {
     status.className = 'field-status manual';
-    status.innerHTML = '<span class="field-status dot"></span>À compléter';
+    status.innerHTML = 'À compléter';
   }
   
   header.appendChild(label);
@@ -749,13 +313,14 @@ function createFieldInput(field) {
   input.name = path;
   input.dataset.path = path;
   
-  // Set initial value
+  // Set initial value (FC values are read-only; default values stay editable)
   if (field.value !== null && field.value !== undefined) {
     input.value = field.value;
-    input.classList.add('readonly');
-    input.readOnly = true;
-    // Store in formData
     setNestedValue(formData, path, field.value);
+    if (field.has_fc_value) {
+      input.classList.add('readonly');
+      input.readOnly = true;
+    }
   } else if (schema.default !== undefined) {
     input.value = schema.default;
     setNestedValue(formData, path, schema.default);
@@ -780,11 +345,11 @@ function createFieldInput(field) {
   
   // Handle change
   input.addEventListener('change', (e) => {
-    setNestedValue(formData, path, e.target.value);
+    setNestedValue(formData, path, coerceFormValue(type, e.target.value));
   });
-  
+
   input.addEventListener('input', (e) => {
-    setNestedValue(formData, path, e.target.value);
+    setNestedValue(formData, path, coerceFormValue(type, e.target.value));
   });
   
   return input;
@@ -941,7 +506,7 @@ function createArrayItem(arrayPath, index, value, itemsSchema) {
   
   input.addEventListener('change', (e) => {
     const arr = getNestedValue(formData, arrayPath) || [];
-    arr[index] = e.target.value;
+    arr[index] = coerceFormValue(itemType, e.target.value);
     setNestedValue(formData, arrayPath, arr);
   });
   
@@ -1089,16 +654,71 @@ async function handleSubmit(e) {
     // Execute algorithm
     const result = await apiPost(`/user/execute/${encodeURIComponent(manifestId)}`, body);
     
-    // Show results
     results.style.display = 'flex';
     const status = $('result-status');
+
+    if (result.status !== 'success') {
+      status.className = 'result-status err';
+      status.textContent = '✗ Exécution en échec';
+      $('result-output').textContent = JSON.stringify(result, null, 2);
+      $('result-details').hidden = false;
+      results.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    const seconds = result.metrics?.runtime_seconds;
     status.className = 'result-status ok';
-    status.textContent = '✓ Exécution réussie';
-    
-    const output = $('result-output');
-    output.textContent = JSON.stringify(result, null, 2);
-    
-    // Scroll to results
+    status.textContent = seconds != null
+      ? `✓ Exécution réussie (${Number(seconds).toFixed(2)} s)`
+      : '✓ Exécution réussie';
+
+    // Carte d'action : output.metadata.redirect_url
+    const redirectUrl = result.output?.metadata?.redirect_url;
+    const redirectCard = $('result-redirect');
+    if (redirectUrl) {
+      redirectCard.href = redirectUrl;
+      redirectCard.hidden = false;
+    } else {
+      redirectCard.hidden = true;
+    }
+
+    // Résultat principal
+    const valueBox = $('result-value');
+    valueBox.innerHTML = '';
+    const label = document.createElement('span');
+    label.className = 'result-value-label';
+    label.textContent = 'Résultat de la règle';
+    valueBox.appendChild(label);
+
+    const value = result.output?.value;
+    console.log(result)
+
+    let main;
+    if (value === true || value === false) {
+      main = document.createElement('span');
+      main.className = `result-boolean ${value ? 'yes' : 'no'}`;
+      main.textContent = value ? 'Oui' : 'Non';
+    } else if (typeof value === 'object' && value !== null) {
+      main = document.createElement('pre');
+      main.className = 'result-json';
+      main.textContent = JSON.stringify(value, null, 2);
+    } else {
+      main = document.createElement('span');
+      main.className = 'result-value-main';
+      main.textContent = value ?? '—';
+    }
+    valueBox.appendChild(main);
+    valueBox.hidden = false;
+
+    // Détails techniques : on écarte execution_context (redondant avec le formulaire)
+    $('result-output').textContent = JSON.stringify({
+      status: result.status,
+      output: result.output,
+      metrics: result.metrics,
+      provenance: result.provenance
+    }, null, 2);
+    $('result-details').hidden = false;
+
     results.scrollIntoView({ behavior: 'smooth' });
     
   } catch (e) {

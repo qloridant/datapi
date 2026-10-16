@@ -1,0 +1,27 @@
+[env]
+
+DATABASE_URL="postgresql://datapi:datapi@postgres:5432/datapi"
+AUTH_TOKEN="test-token"
+FRANCECONNECT_CLIENT_ID="334474a36e048a46a0bf448ad0eb7d985a2ce8715645c1d02757e0d4c0b13893"
+FRANCECONNECT_CLIENT_SECRET="f9aba52cdcbb3fed6cd97448028ac11f4e145fa1c1def7e87fe7afe86ca8d785"
+FC_AUTHORIZATION_URL="https://fcp-low.sbx.dev-franceconnect.fr/api/v2/authorize"
+FC_TOKEN_URL="https://fcp-low.sbx.dev-franceconnect.fr/api/v2/token"
+FC_USERINFO_URL="https://fcp-low.sbx.dev-franceconnect.fr/api/v2/userinfo"  
+FC_REDIRECT_URI="http://localhost:8000/user/auth/fc/callback"
+SESSION_COOKIE_SECURE="false"
+
+[tools]
+python = "3.13"
+
+[tasks.install]
+description = "Installe l'environnement Python et les dépendances du projet"
+run = "uv sync"
+
+[tasks.start]
+
+description = "Démarre l'API en local avec rechargement automatique (http://127.0.0.1:8000)"
+run = "uv run --no-sync uvicorn api.server:app --reload --host 127.0.0.1 --port 8000"
+
+[tasks.start-docker]
+description = "Démarre la stack complète via Docker Compose (API + auth)"
+run = "docker compose up --build"

@@ -24,5 +24,5 @@ def test_regalgo_class_entrypoint():
     assert res["ok"]
     out = adapter.execute_sync(manifest, "run1", body, exec_opts={"timeout_seconds": 10})
     assert out["status"] == "success", out
-    assert out["output"]["value"] == "200"
+    assert out["output"]["value"] == "age17_18"
     assert out["output"]["algo_id"]

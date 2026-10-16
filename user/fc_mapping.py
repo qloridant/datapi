@@ -2,14 +2,25 @@
 France Connect Mapping Engine
 
 This module provides the core functionality for mapping France Connect claims
-to algorithm input fields using the hybrid approach (global defaults + per-algorithm overrides).
+to algorithm input fields.
+
+The mapping is declared directly on each ``input_schema`` property, via the
+``franceconnect`` keyword (see ``FC_MAPPING_KEYWORD``) — there is no separate
+manifest block. A property's value can be:
+
+- ``"$default.<name>"`` — a reference to a default mapping from
+  ``config/franceconnect_mapping.yaml`` (shared defaults, overridable),
+- a direct FC claim path (e.g. ``"birthdate"`` or ``"address.postal_code"``),
+- ``null`` — the field must be provided manually,
+- an extended object (``{"source": ..., "transform": ..., "label": ...}``).
+
+Properties without the keyword are never prefilled from France Connect.
 
 Usage:
     from user.fc_mapping import FCMappingEngine
-    
+
     engine = FCMappingEngine()
-    
-    # Load FC claims (from OIDC userinfo)
+
     fc_claims = {
         "sub": "123456",
         "given_name": "Jean",
@@ -21,11 +32,9 @@ Usage:
             "city": "Paris"
         }
     }
-    
-    # Get algorithm manifest
-    manifest = {...}
-    
-    # Generate input payload with FC data pre-filled
+
+    manifest = {...}  # input_schema properties carry "franceconnect" keys
+
     input_payload, missing_fields, consent_fields = engine.generate_input_payload(
         fc_claims, manifest
     )
@@ -53,13 +62,49 @@ class InvalidMappingError(FCMappingError):
     pass
 
 
+# JSON Schema keyword, on each input_schema property, declaring its France
+# Connect mapping. Unknown to JSON Schema validators, which simply ignore it.
+FC_MAPPING_KEYWORD = "franceconnect"
+
+
+def extract_mappings(input_schema: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Collect the France Connect mappings declared inside an input_schema.
+
+    Walks the schema's ``properties`` recursively and returns a dict keyed by
+    dotted property path (e.g. ``data.date_naissance``), whose values are the
+    property's ``franceconnect`` mapping. Properties without the keyword are
+    skipped — they are never prefilled from France Connect.
+
+    Args:
+        input_schema: The manifest's input_schema
+
+    Returns:
+        Dict of {dotted_path: mapping_config}
+    """
+    mappings: Dict[str, Any] = {}
+
+    def _walk(schema: Any, prefix: str) -> None:
+        if not isinstance(schema, dict):
+            return
+        for name, prop in (schema.get("properties") or {}).items():
+            path = f"{prefix}.{name}" if prefix else name
+            if isinstance(prop, dict):
+                if FC_MAPPING_KEYWORD in prop:
+                    mappings[path] = prop[FC_MAPPING_KEYWORD]
+                _walk(prop, path)
+
+    _walk(input_schema, "")
+    return mappings
+
+
 class FCMappingEngine:
     """
     Engine for mapping France Connect claims to algorithm inputs.
-    
+
     Supports:
     - Default mappings from config/franceconnect_mapping.yaml
-    - Per-algorithm mapping overrides
+    - Per-property mappings declared directly on input_schema (franceconnect keyword)
     - Transformation functions
     - Consent tracking
     """
@@ -161,44 +206,7 @@ class FCMappingEngine:
                 return None
         
         return current
-    
-    def _apply_transform(
-        self, 
-        value: Any, 
-        transform_name: str,
-        **kwargs: Any
-    ) -> Any:
-        """
-        Apply a transformation function to a value.
-        
-        Args:
-            value: The input value
-            transform_name: Name of the transform function
-            **kwargs: Additional arguments for the transform
-        
-        Returns:
-            The transformed value
-        
-        Raises:
-            MissingTransformError: If transform doesn't exist
-        """
-        if transform_name not in self._transforms:
-            raise MissingTransformError(
-                f"Transform function '{transform_name}' not found"
-            )
-        
-        transform_func = self._transforms[transform_name]
-        
-        try:
-            # Handle both positional and keyword arguments
-            if kwargs:
-                return transform_func(value, **kwargs)
-            else:
-                return transform_func(value)
-        except Exception as e:
-            raise FCMappingError(
-                f"Failed to apply transform '{transform_name}': {str(e)}"
-            )
+   
     
     def _parse_mapping_value(
         self, 
@@ -280,7 +288,7 @@ class FCMappingEngine:
         # Apply transform if specified
         if extended_config and "transform" in extended_config:
             transform_name = extended_config["transform"]
-            raw_value = self._apply_transform(raw_value, transform_name)
+            # raw_value = self._apply_transform(raw_value, transform_name)
         
         return raw_value, extended_config
     
@@ -369,18 +377,9 @@ class FCMappingEngine:
             # Map pivot field name to FC claim path
             if field in self._default_mappings:
                 mapping = self._default_mappings[field]
-                fc_path, _ = self._parse_mapping_value(mapping, fc_claims)
-                if fc_path:
-                    value = self._resolve_fc_path(fc_claims, fc_path)
-                    if value is not None:
-                        # Apply transform if configured in the mapping
-                        if isinstance(mapping, str) and "|" in mapping:
-                            _, transform_part = mapping.split("|", 1)
-                            if "transform:" in transform_part:
-                                transform_name = transform_part.split("transform:")[1].strip()
-                                value = self._apply_transform(value, transform_name)
-                        pivot_data[field] = value
-        
+                value, _ = self._get_mapping_value(self._default_mappings[field], fc_claims)
+                if value is not None:
+                    pivot_data[field] = value
         return pivot_data
     
     def generate_input_payload(
@@ -412,20 +411,10 @@ class FCMappingEngine:
         input_payload: Dict[str, Any] = {}
         missing_fields: List[Dict[str, Any]] = []
         consent_fields: List[Dict[str, Any]] = []
-        
-        # Get the algorithm's FC mapping configuration
-        fc_mapping = manifest.get("franceconnect_mapping", {})
-        mappings = fc_mapping.get("mappings", {})
-        
-        # Also check for package-level mapping if this is from a package
-        if "algorithms" in manifest:
-            # This is a package manifest - use its mapping as fallback
-            package_mapping = manifest.get("franceconnect_mapping", {})
-            package_mappings = package_mapping.get("mappings", {})
-            # Merge: algorithm mappings override package mappings
-            effective_mappings = {**package_mappings, **mappings}
-        else:
-            effective_mappings = mappings
+
+        # FC mappings are declared on input_schema properties (franceconnect
+        # keyword) — no separate manifest block.
+        effective_mappings = extract_mappings(manifest.get("input_schema", {}))
         
         # Process each mapping
         for input_path, mapping_config in effective_mappings.items():
@@ -487,56 +476,76 @@ class FCMappingEngine:
         manifest: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Get metadata for all fields that can be mapped from FC.
-        
+        Get metadata for every input field declared in the manifest's
+        input_schema -- FC-mapped properties and unmapped ones (context
+        parameters, manual fields).
+
+        FC-mapped properties get their value from FC claims (None if the
+        claim is absent); unmapped properties get their JSON Schema
+        ``default`` if any. The list keeps the schema's declaration order,
+        and each field carries a ``group`` (top-level path segment, e.g.
+        "data" or "context") so the frontend can render them in separated
+        sections. Container objects (properties with sub-properties) are
+        recursed into, not emitted as fields themselves.
+
         Useful for building the input form with pre-filled values and labels.
-        
+
         Args:
             fc_claims: Raw France Connect claims
             manifest: The algorithm manifest
-        
+
         Returns:
             List of field metadata dicts
         """
-        fc_mapping = manifest.get("franceconnect_mapping", {})
-        mappings = fc_mapping.get("mappings", {})
-        
         input_schema = manifest.get("input_schema", {})
-        
-        fields = []
-        
-        # Process each mapping
-        for input_path, mapping_config in mappings.items():
-            # Get value from FC
-            value, extended_config = self._get_mapping_value(mapping_config, fc_claims)
-            
-            # Get schema
-            field_schema = self._get_nested_schema(input_schema, input_path)
-            
-            field_info = {
-                "path": input_path,
-                "value": value,
-                "has_fc_value": value is not None,
-                "schema": field_schema or {},
-                "label": extended_config.get("label", input_path) if extended_config else input_path,
-                "required": True,  # Will be determined below
-                "type": field_schema.get("type", "unknown") if field_schema else "unknown",
-                "default": extended_config.get("default") if extended_config else None
-            }
-            
-            # Determine if required
-            if extended_config and "required" in extended_config:
-                field_info["required"] = extended_config["required"]
-            elif field_schema:
-                field_info["required"] = field_schema.get("required", False)
-                if isinstance(field_info["required"], list):
-                    field_info["required"] = input_path in field_info["required"]
-            
-            fields.append(field_info)
-        
-        # Sort fields: required first, then alphabetical
-        fields.sort(key=lambda f: (not f["required"], f["path"]))
-        
+        fields: List[Dict[str, Any]] = []
+
+        def _walk(schema: Any, prefix: str, parent_required: List[str]) -> None:
+            if not isinstance(schema, dict):
+                return
+            for name, prop in (schema.get("properties") or {}).items():
+                if not isinstance(prop, dict):
+                    continue
+                path = f"{prefix}.{name}" if prefix else name
+
+                # Container objects are recursed into, not rendered as fields
+                if "properties" in prop:
+                    _walk(prop, path, prop.get("required") or [])
+                    continue
+
+                mapping_config = prop.get(FC_MAPPING_KEYWORD)
+
+                if mapping_config is not None:
+                    value, extended_config = self._get_mapping_value(mapping_config, fc_claims)
+                    has_fc_value = value is not None
+                    default = extended_config.get("default") if extended_config else None
+                else:
+                    value = prop.get("default")
+                    extended_config = None
+                    has_fc_value = False
+                    default = prop.get("default")
+
+                fields.append({
+                    "path": path,
+                    "value": value,
+                    "has_fc_value": has_fc_value,
+                    "schema": prop,
+                    "label": (
+                        (extended_config or {}).get("label")
+                        or prop.get("title")
+                        or path
+                    ),
+                    "required": (
+                        name in (parent_required or [])
+                        or (extended_config or {}).get("required") is True
+                    ),
+                    "type": prop.get("type", "unknown"),
+                    "default": default,
+                    "mapping": mapping_config,
+                    "group": prefix or path,
+                })
+
+        _walk(input_schema, "", input_schema.get("required") or [])
         return fields
     
     def get_default_mappings(self) -> Dict[str, Any]:
@@ -556,37 +565,29 @@ class FCMappingEngine:
         manifest: Dict[str, Any]
     ) -> List[str]:
         """
-        Validate the franceconnect_mapping section of a manifest.
-        
+        Validate the France Connect mappings declared on a manifest's
+        input_schema properties.
+
         Args:
             manifest: The manifest to validate
-        
+
         Returns:
             List of error messages (empty if valid)
         """
         errors = []
-        fc_mapping = manifest.get("franceconnect_mapping", {})
-        
-        if not isinstance(fc_mapping, dict):
-            errors.append("franceconnect_mapping must be an object")
-            return errors
-        
-        mappings = fc_mapping.get("mappings", {})
-        if not isinstance(mappings, dict):
-            errors.append("franceconnect_mapping.mappings must be an object")
-            return errors
-        
+        mappings = extract_mappings(manifest.get("input_schema", {}))
+
         # Check each mapping value
         for path, value in mappings.items():
             if value is None:
                 continue  # Valid: manual input
-            
+
             if isinstance(value, str):
                 # Check if it references a default mapping
                 if value.startswith("$default."):
                     default_key = value[9:]
                     if default_key not in self._default_mappings:
-                        errors.append(f"Mapping '{path}' references unknown default '{default_key}'")
+                        errors.append(f"Property '{path}' references unknown default '{default_key}'")
                 # Otherwise it's an FC path - we can't validate it exists here
             elif isinstance(value, dict):
                 # Extended mapping
@@ -594,10 +595,10 @@ class FCMappingEngine:
                     transform_name = value["transform"]
                     if transform_name not in self._transforms:
                         errors.append(
-                            f"Mapping '{path}' uses unknown transform '{transform_name}'"
+                            f"Property '{path}' uses unknown transform '{transform_name}'"
                         )
             else:
-                errors.append(f"Mapping '{path}' has invalid type: {type(value)}")
+                errors.append(f"Property '{path}' has invalid mapping type: {type(value)}")
         
         return errors
 
