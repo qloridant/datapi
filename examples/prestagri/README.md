@@ -22,7 +22,7 @@ compiled on the fly by the API.
 - `generated/` — the Python translation, copied as-is from
   `external_repositories/prestagri/backend/app/catala/generated` (produced
   there by the Catala compiler). This is what
-  `examples/prestagri/manifest.json`'s `aide_scolarite` algorithm entry's
+  `examples/prestagri/metadata.json`'s
   `entrypoint.target` points at.
 - `clerk.toml` — project file for the `clerk` build tool, copied from the
   upstream `catala/` project, kept for reference on how `generated/` was
@@ -30,21 +30,19 @@ compiled on the fly by the API.
 
 ## Try it
 
-`examples/prestagri/manifest.json` is a **package** manifest (see
-`catalog/manifest.schema.json` and `docs/INTEGRATION.md`, section "Un dépôt
-qui expose plusieurs algorithmes") — Prest'Agri's real
+`examples/prestagri/metadata.json` is a **single-algorithm** manifest
+(see `catalog/manifest.schema.json` and `docs/INTEGRATION.md`). Prest'Agri's
+real
 [`metadata.jsonld`](https://github.com/betagouv/prestagri) registered on
 [regles.data.gouv.fr](https://github.com/datagouv/regles.data.gouv.fr)
 describes both a quotient-familial and an aide-scolarite service under one
-aggregator, and only the latter is vendored/registered here so far. Use
-`catalog.manifest_loader.load_manifests(...)` to get the flattened algorithm
-entry rather than reading the file as a single-algorithm manifest:
+aggregator; only the latter is vendored/registered here so far:
 
 ```sh
 python3 -c "
 from adapters.catala_adapter import CatalaAdapter
-from catalog.manifest_loader import load_manifests
-manifest = load_manifests('examples/prestagri/manifest.json')[0]
+import json
+manifest = json.loads(open('examples/prestagri/metadata.json').read())
 print(CatalaAdapter().execute_sync(manifest, 'run1', manifest['sample_inputs'],
     exec_opts={'timeout_seconds': 10}))
 "

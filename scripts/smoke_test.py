@@ -34,10 +34,8 @@ def health_check():
 def execute_pass_culture(manifest):
     test_data = {
         "data": {
-            "age": 18,
             "date_naissance": "2007-06-15",
-            "dispose_credit_17_18": True,
-            "bonification_deja_versee": True,
+            "departement": "75",
         },
         "context": {
             "date_evaluation": "2025-06-16T00:00:00",

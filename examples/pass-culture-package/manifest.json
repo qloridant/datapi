@@ -1,0 +1,65 @@
+{
+  "id": "pass_culture",
+  "version": "1.0.0",
+  "dct:title": "Pass Culture — Statut d'éligibilité",
+  "description": "Statut d'éligibilité au pass Culture par âge.",
+  "org": "local.examples",
+  "runtime": { "language": "python", "version": "3.11", "primary": true },
+  "entrypoint": { "type": "python:regalgo_class", "target": "pass_culture_rules.statut_eligibilite.regles:StatutEligibiliteAlgo" },
+  "input_schema": {
+    "type": "object",
+    "required": ["data", "context"],
+    "properties": {
+      "data": {
+        "type": "object",
+        "properties": {
+          "date_naissance": { "type": ["string", "null"], "title": "Date de naissance", "franceconnect": "$default.birthdate" },
+          "address": { "type": ["string", "null"], "title": "Adresse", "franceconnect": "$default.address" }
+        }
+      },
+      "context": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "date_evaluation": {
+            "type": "string",
+            "title": "Date d'évaluation",
+            "description": "Date/heure à laquelle le statut est évalué",
+            "default": "2025-06-16T00:00:00"
+          },
+          "date_decret_v3": {
+            "type": "string",
+            "title": "Date d'entrée en vigueur du décret 2025-195",
+            "description": "Date charnière de la réforme (27 février 2025)",
+            "default": "2025-02-27T00:00:00"
+          }
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "required": ["value", "algo_id", "regulation", "inputs_snapshot", "metadata"],
+    "properties": {
+      "value": {},
+      "algo_id": { "type": "string" },
+      "regulation": { "type": "object" },
+      "inputs_snapshot": { "type": "object" },
+      "metadata": { "type": "object" }
+    }
+  },
+  "resources": { "timeout_seconds": 10, "cpu": 0.2, "memory_bytes": 67108864 },
+  "source": [],
+  "sample_inputs": {
+    "data": {
+      "date_naissance": "2007-06-15",
+      "departement": "75"
+    },
+    "context": {
+      "date_evaluation": "2025-06-16T00:00:00",
+      "date_decret_v3": "2025-02-27T00:00:00"
+    }
+  },
+  "tags": ["example", "python", "regalgo"]
+}

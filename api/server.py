@@ -13,8 +13,8 @@ from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
 from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_manifest
 from catalog.jsonld_converter import manifest_to_jsonld
-from user.fc_mapping import FCMappingEngine, get_fc_mapping_engine
-
+from user.fc_mapping import FCMappingEngine, get_fc_mapping_engine, extract_mappings
+from user.fc_client import exchange_code, fetch_userinfo
 
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "test-token")
 
@@ -22,6 +22,7 @@ app = FastAPI(title="Datapi POC")
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/admin", StaticFiles(directory=STATIC_DIR, html=True), name="admin")
+app.mount("/static", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 # Mount user static files
 USER_STATIC_DIR = os.path.join(os.path.dirname(__file__), "static", "user")
@@ -317,7 +318,6 @@ def fc_login(request: Request):
     
     # Construct query string
     query_string = "&".join(f"{k}={v}" for k, v in params.items())
-    
     return RedirectResponse(url=f"{auth_url}?{query_string}")
 
 
@@ -343,38 +343,8 @@ async def fc_callback(
     
     # Exchange code for token
     try:
-        # For POC/simplification, we'll mock the token exchange
-        # In production, use proper OAuth2 client
-        # This is a placeholder for the actual implementation
-        
-        # Mock: In integration mode, we can use a test token
-        # For now, we'll simulate getting user info
-        # In real implementation, you would:
-        # 1. POST to token_url with code, client_id, client_secret, redirect_uri
-        # 2. Get access_token and id_token
-        # 3. Validate id_token signature
-        # 4. GET userinfo with access_token
-        
-        # For POC, let's create a mock user response
-        # In real use, this would come from FC userinfo endpoint
-        mock_claims = {
-            "sub": f"user_{secrets.token_hex(8)}",
-            "given_name": "Test",
-            "family_name": "User",
-            "birthdate": "1990-01-01",
-            "email": "test.user@example.com",
-            "gender": "male",
-            "address": {
-                "postal_code": "75001",
-                "city": "Paris",
-                "formatted": "1 Rue de Paris, 75001 Paris",
-                "country": "FR"
-            },
-            "phone": "+33123456789",
-            "identity_provider": "fi",
-            "identity_level": "substantial",
-            "amr": ["pwd"],
-        }
+        token_data = await exchange_code(FC_CONFIG, code)
+        claims = await fetch_userinfo(FC_CONFIG, token_data["access_token"])
         
         # Create session
         session_id = generate_session_id()
@@ -383,10 +353,10 @@ async def fc_callback(
         
         session_data = {
             "session_id": session_id,
-            "user_id": mock_claims["sub"],
+            "user_id": claims["sub"],
             "access_token": f"mock_token_{secrets.token_hex(16)}",
             "id_token": f"mock_id_token_{secrets.token_hex(16)}",
-            "claims": mock_claims,
+            "claims": claims,
             "created_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),
             "consent": {}  # Empty consent initially
@@ -397,13 +367,13 @@ async def fc_callback(
         
         # Create/Update user in store
         user_data = {
-            "user_id": mock_claims["sub"],
+            "user_id": claims["sub"],
             "created_at": now.isoformat(),
             "last_login": now.isoformat(),
-            "fc_claims": mock_claims,
+            "fc_claims": claims,
             "consent": {}  # Will be populated as user consents to algorithms
         }
-        FC_USER_STORE[mock_claims["sub"]] = user_data
+        FC_USER_STORE[claims["sub"]] = user_data
         
         # Set cookie
         response = RedirectResponse(url="/user/algorithms")
@@ -449,7 +419,6 @@ def get_user_pivot(session: Dict[str, Any] = Depends(require_user_session)):
     """
     claims = session.get("claims", {})
     pivot_data = fc_mapping_engine.extract_pivot_data(claims)
-    
     return {
         "status": "ok",
         "pivot_data": pivot_data
@@ -473,8 +442,8 @@ def get_user_catalog(session: Dict[str, Any] = Depends(require_user_session)):
     for manifest_id in manifest_ids:
         manifest = MANIFEST_STORE[manifest_id]
         
-        # Check if algorithm has FC mapping
-        has_fc_mapping = "franceconnect_mapping" in manifest
+        # Check if algorithm has FC mapping (declared on input_schema properties)
+        has_fc_mapping = bool(extract_mappings(manifest.get("input_schema", {})))
         
         # Check user consent for this algorithm
         algo_consent = user_consent.get(manifest_id, {})

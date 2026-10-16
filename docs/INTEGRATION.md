@@ -37,6 +37,20 @@ Champs requis (voir le schéma complet) :
 | `source` | Chemin(s) vers le(s) fichier(s) source, pour traçabilité |
 | `sample_inputs` | Un exemple d'entrée valide, utile pour tester rapidement |
 
+**Pré-remplissage France Connect** — il se déclare directement dans
+`input_schema`, pas dans un bloc séparé : chaque propriété peut porter un
+mot-clé `franceconnect` dont la valeur est soit un chemin de claim FC
+(`"birthdate"`), soit une référence aux mappings partagés de
+[`config/franceconnect_mapping.yaml`](../config/franceconnect_mapping.yaml)
+(`"$default.birthdate"`), soit `null` (saisie manuelle), soit un objet
+étendu (`{"source": ..., "transform": ...}`). Les propriétés sans le mot-clé
+ne sont jamais pré-remplies ; elles peuvent porter un `default` JSON Schema
+(c'est le cas des paramètres de contexte, ex. `context.date_evaluation`),
+affiché pré-rempli et modifiable dans la page d'exécution, dans une section
+séparée. `user/fc_mapping.py` (`extract_mappings`, `get_field_metadata`)
+parcourt le schéma pour construire le payload et les métadonnées du
+formulaire.
+
 Les deux exemples fournis (`examples/python/manifest.json` et
 `examples/catala/manifest.json`) calculent le même « quotient familial » et
 peuvent servir de gabarit à copier.
@@ -134,7 +148,9 @@ json.dump(manifest, open("mon_org/manifest.json", "w"), indent=2, ensure_ascii=F
 
 C'est ce script, appliqué une fois au `metadata.jsonld` réel de Prest'Agri
 (2 services : `quotient-familial` et `aide-scolarite`), qui a produit la
-forme paquet de `examples/prestagri/manifest.json` — le `metadata.jsonld`
+forme paquet de `examples/prestagri/manifest.json` — depuis remplacée par le
+manifeste mono-algorithme `examples/prestagri/metadata.json` (la forme paquet
+reste consultable dans l'histoire git). Le `metadata.jsonld`
 d'origine n'est pas committé à côté (usage ponctuel), il vit comme fixture
 de test dans `tests/test_jsonld_converter.py`. Le service quotient-familial,
 n'ayant pas encore d'entrée `algorithms[]` correspondante, est ressorti dans
@@ -181,6 +197,89 @@ entrée dupliquée par occurrence plutôt qu'une seule entrée dédupliquée.
 ## Intégrer un algorithme Python
 
 Adapter : [`adapters/python_adapter.py`](../adapters/python_adapter.py).
+
+### 0. Où doit vivre le code, et comment Datapi le « découvre »
+
+Datapi ne scanne jamais le disque à la recherche d'algorithmes : la
+« découverte » se fait en deux temps, et seul le premier implique Datapi.
+
+1. **Découverte de l'algorithme = enregistrement du manifeste.**
+   `POST /catalog/register` (ou la console `/admin`) met l'entrée dans
+   `MANIFEST_STORE` (en mémoire, dans `api/server.py`). C'est la seule
+   façon d'entrer au catalogue.
+2. **Import du code = au moment de l'exécution.** Pour chaque
+   `POST /execute/{id}`, `PythonAdapter._load_callable` fait
+   `importlib.import_module(module_path)` puis `getattr(mod, attr)` — un
+   import Python ordinaire, dans le process de l'API. Datapi n'ajoute
+   **rien** à `sys.path` : le module visé par `entrypoint.target` doit être
+   importable par ce process, c'est tout.
+
+« Organiser les dossiers » revient donc à respecter les règles d'import de
+Python, pas une convention Datapi. Deux layouts valides :
+
+**Layout A — paquet dans l'arborescence du dépôt Datapi**
+(`examples/python/`, `examples/pass_culture_rules/`) :
+
+```
+examples/pass_culture_rules/
+├── __init__.py
+└── statut_eligibilite/
+    ├── __init__.py
+    ├── _base.py
+    ├── regles.py            # la classe StatutEligibiliteAlgo
+    └── metadata.json
+```
+
+Importable parce que l'API est lancée depuis la racine du dépôt
+(`uvicorn api.server:app`), et que le répertoire courant est sur
+`sys.path`. `entrypoint.target` doit alors être le chemin pointé complet
+depuis la racine :
+`examples.pass_culture_rules.statut_eligibilite.regles:StatutEligibiliteAlgo`.
+Limite : ce chemin ne vaut que si le process est lancé depuis la racine du
+dépôt, et les imports internes du paquet doivent être relatifs
+(`from ._base import BaseRule`) — un `from pass_culture_rules._base
+import ...` ne résoudra pas dans ce layout (voir ci-dessous).
+
+**Layout B — paquet installé dans le venv** (l'ancien
+`examples/pass-culture-package/`) :
+
+```
+examples/pass-culture-package/
+├── pyproject.toml           # hatchling, packages = ["src/pass_culture_rules"]
+├── manifest.json
+└── src/
+    └── pass_culture_rules/  # le nom de module naît ici
+        └── statut_eligibilite/...
+```
+
+Déclaré dans le `pyproject.toml` de Datapi :
+`dependencies = ["pass-culture-rules"]` +
+`[tool.uv.sources] pass-culture-rules = { path = "examples/pass-culture-package", editable = true }`.
+Après `uv sync`, un `.pth` dans `site-packages` expose `src/` :
+`pass_culture_rules` devient un paquet de premier niveau, importable depuis
+n'importe quel répertoire, et `entrypoint.target` s'écrit
+`pass_culture_rules.statut_eligibilite.regles:StatutEligibiliteAlgo`.
+
+**Pourquoi `pass_culture_rules` peut ne « pas être lu comme un module »** —
+pièges constatés, tous des conséquences des deux points précédents :
+
+1. Le dossier du dépôt n'est pas le module. `pass-culture-package` (tirets,
+   code sous `src/`) n'est pas importable en l'état : seule l'installation
+   éditable crée le nom `pass_culture_rules`. Supprimer ou déplacer le
+   dossier sans repasser par `uv sync` laisse dans `site-packages` un
+   `.pth` pointant sur un chemin mort → `ModuleNotFoundError`, y compris
+   pour un code qui fonctionnait la veille.
+2. Inversement, le layout A n'expose **pas** le nom de premier niveau :
+   depuis la racine du dépôt, c'est `examples.pass_culture_rules` qui
+   importe, pas `pass_culture_rules`.
+3. Un import interne absolu (`from pass_culture_rules._base import
+   BaseRule` dans `regles.py`) suppose le layout B ; basculé en layout A
+   sans l'adapter en relatif, il casse l'import du module entier.
+
+Règle pratique : un layout par paquet, cohérent de bout en bout
+(`entrypoint.target`, imports internes, dépendance pyproject ou non), et
+vérifier `python -c "import <module>"` depuis le répertoire d'où l'API
+sera lancée, avant tout enregistrement.
 
 ### 1. Écrire le code
 
@@ -262,10 +361,13 @@ paquet de ce type, dans `adapters/python_adapter.py`.
 - La sortie est `regalgo.AlgoResult` sérialisé tel quel (`value`, `algo_id`,
   `regulation`, `inputs_snapshot`, `metadata`), avec les types non
   JSON-natifs (`Decimal`, `date`/`datetime`) convertis en chaînes.
-- Voir [`examples/pass-culture-package/manifest.json`](../examples/pass-culture-package/manifest.json)
-  pour un exemple complet — `entrypoint.target` y pointe directement sur
-  `pass_culture_rules.montant_total.regles:MontantTotalAlgo`, sans aucun
-  code de glue spécifique à ce paquet.
+- Avec le layout A (paquet dans le dépôt), `entrypoint.target` pointe
+  directement sur
+  `examples.pass_culture_rules.statut_eligibilite.regles:StatutEligibiliteAlgo`,
+  sans aucun code de glue spécifique à ce paquet ; avec le layout B
+  (paquet installé), sur
+  `pass_culture_rules.statut_eligibilite.regles:StatutEligibiliteAlgo` —
+  voir la section 0 ci-dessus pour le choix entre les deux.
 
 ### 3. Tester en local, sans passer par l'API
 

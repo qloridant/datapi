@@ -1,0 +1,40 @@
+{
+  "@context": {
+    "cprmv": "https://standaarden.open-regels.nl/standards/cprmv/0.4.0/",
+    "cpsv": "http://purl.org/vocab/cpsv#",
+    "cv":   "http://data.europa.eu/m8g/",
+    "dct":  "http://purl.org/dc/terms/"
+  },
+  "@id":    "https://regles.gouv.fr/algo/pass-culture/statut-eligibilite/v1",
+  "@type":  "cprmv:DecisionModel",
+  "dct:title":      "Statut d'éligibilité par âge et date — pass Culture",
+  "dct:identifier": "pass-culture.statut-eligibilite.v1",
+  "dct:version":    "1.0.0",
+  "cprmv:isBasedOn": {
+    "@id":          "https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000043518870",
+    "dct:title":    "Décret n° 2021-628 du 20 mai 2021",
+    "dct:coverage": "Fenêtre d'éligibilité 15-19 ans, statuts underage/age18"
+  },
+  "cprmv:isAlsoBasedOn": {
+    "@id":          "https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000051261329",
+    "dct:title":    "Décret n° 2025-195 du 27 février 2025",
+    "dct:coverage": "Statuts age17_18/free, date charnière date_decret_v3"
+  },
+  "cv:hasCompetentAuthority": {"dct:title": "Ministère de la Culture"},
+  "cprmv:method":    ["cprmv:FormalisationMethod", "cprmv:CodificationMethod"],
+  "cprmv:validFrom": "2021-05-20",
+  "cprmv:hasPart": [
+    {"@type": "cprmv:Rule", "dct:identifier": "date_naissance", "cprmv:definition": "Date de naissance de la personne", "type": "date | null"},
+    {"@type": "cprmv:Rule", "dct:identifier": "departement", "cprmv:definition": "Code département — anniversaire à minuit local", "type": "string | null"},
+    {"@type": "cprmv:ContextVariable", "dct:identifier": "date_evaluation", "cprmv:definition": "Date/heure à laquelle évaluer le statut", "type": "datetime"},
+    {"@type": "cprmv:ContextVariable", "dct:identifier": "date_decret_v3", "cprmv:definition": "Date/heure d'entrée en vigueur du Décret 2025-195 (pas de valeur par défaut — voir regles.py)", "type": "datetime"}
+  ],
+  "cpsv:produces": {
+    "@type":            "cprmv:Rule",
+    "dct:identifier":   "statut",
+    "cprmv:definition": "Statut d'éligibilité : underage/age18 (avant réforme) ou age17_18/free (après), null hors fenêtre 15-19 ans",
+    "type": "string | null",
+    "enum": ["underage", "age18", "age17_18", "free"]
+  },
+  "dct:subject": ["pass-culture", "eligibilite", "age", "drom-com", "jeunesse"]
+}
