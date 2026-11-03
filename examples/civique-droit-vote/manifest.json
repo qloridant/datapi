@@ -1,0 +1,110 @@
+{
+  "id": "civique-droit-vote",
+  "record": "https://regles.data.gouv.fr/regles/ministere-interieur/civique-droit-vote",
+  "public": true,
+  "runtime": {
+    "language": "python",
+    "version": "3.13",
+    "primary": true
+  },
+  "entrypoint": {
+    "type": "python:regalgo_class",
+    "target": "regalgo_civique_droit_vote.algorithm:DroitVoteAlgorithm"
+  },
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "data"
+    ],
+    "properties": {
+      "data": {
+        "type": "object",
+        "required": [
+          "nationalite_francaise",
+          "age",
+          "capacite_civique",
+          "inscrit_listes_electorales"
+        ],
+        "properties": {
+          "nationalite_francaise": {
+            "type": "boolean",
+            "title": "Nationalité française",
+            "x-legal-basis": {
+              "title": "Code électoral, article L.2",
+              "url": "https://www.legifrance.gouv.fr/codes/id/LEGITEXT000006070239/"
+            }
+          },
+          "age": {
+            "type": "integer",
+            "title": "Âge",
+            "x-legal-basis": {
+              "title": "Code électoral, article L.2",
+              "url": "https://www.legifrance.gouv.fr/codes/id/LEGITEXT000006070239/"
+            },
+            "x-source": {
+              "provider": "FranceConnect",
+              "data": "date de naissance",
+              "correctable": true
+            }
+          },
+          "capacite_civique": {
+            "type": "boolean",
+            "title": "Jouit de ses droits civiques",
+            "x-legal-basis": {
+              "title": "Code électoral, article L.6",
+              "url": "https://www.legifrance.gouv.fr/codes/id/LEGITEXT000006070239/"
+            }
+          },
+          "inscrit_listes_electorales": {
+            "type": "boolean",
+            "title": "Inscrit sur les listes électorales"
+          },
+          "citoyennete_ue": {
+            "type": "boolean",
+            "title": "Citoyenneté d'un pays de l'Union européenne",
+            "x-legal-basis": {
+              "title": "Constitution, article 88-3",
+              "url": "https://www.legifrance.gouv.fr/loda/article_lc/LEGIARTI000006527438/"
+            }
+          },
+          "domicile_france": {
+            "type": "boolean",
+            "title": "Domicile en France",
+            "x-legal-basis": {
+              "title": "Code électoral, article L.O. 227-1",
+              "url": "https://www.legifrance.gouv.fr/codes/id/LEGITEXT000006070239/"
+            }
+          }
+        },
+        "title": "Personne concernée"
+      },
+      "context": {
+        "type": "object",
+        "properties": {
+          "type_election": {
+            "type": "string",
+            "title": "Type d'élection",
+            "enum": [
+              "nationale",
+              "municipale"
+            ],
+            "default": "nationale"
+          }
+        },
+        "title": "Élection"
+      }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "value": {
+        "type": "boolean",
+        "title": "Peut voter"
+      }
+    }
+  },
+  "resources": {
+    "timeout_seconds": 10
+  }
+}

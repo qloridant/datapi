@@ -1,0 +1,110 @@
+{
+  "id": "prestagri-quotient-familial",
+  "record": "https://regles.data.gouv.fr/regles/ministere-agriculture/prestagri-quotient-familial",
+  "public": true,
+  "runtime": {
+    "language": "catala",
+    "version": "dev",
+    "primary": true
+  },
+  "entrypoint": {
+    "type": "catala:scope",
+    "target": "examples.prestagri.generated.Quotient_familial:calcul_quotient_familial"
+  },
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "menage"
+    ],
+    "properties": {
+      "menage": {
+        "type": "object",
+        "title": "Ménage de l'agent",
+        "required": [
+          "beneficiaire_porteur_handicap",
+          "garde_alternee",
+          "parent_isole",
+          "outre_mer",
+          "membres_du_foyer"
+        ],
+        "properties": {
+          "beneficiaire_porteur_handicap": {
+            "type": "boolean",
+            "title": "Un membre du foyer est porteur de handicap"
+          },
+          "garde_alternee": {
+            "type": "boolean",
+            "title": "Enfants en garde alternée"
+          },
+          "parent_isole": {
+            "type": "boolean",
+            "title": "Parent isolé"
+          },
+          "outre_mer": {
+            "type": "boolean",
+            "title": "Agent affecté en outre-mer"
+          },
+          "membres_du_foyer": {
+            "type": "array",
+            "title": "Foyers fiscaux du ménage",
+            "items": {
+              "type": "object",
+              "required": [
+                "revenu_fiscal_reference",
+                "nombre_personnes"
+              ],
+              "properties": {
+                "revenu_fiscal_reference": {
+                  "type": "number",
+                  "title": "Revenu fiscal de référence (en euros)",
+                  "x-source": {
+                    "provider": "API Impôt particulier (DGFiP)",
+                    "data": "revenu fiscal de référence",
+                    "endpoint": "/situations/ir/assiettes/annrev/{annrev}",
+                    "correctable": true
+                  }
+                },
+                "nombre_personnes": {
+                  "type": "integer",
+                  "title": "Nombre de personnes"
+                }
+              },
+              "additionalProperties": false,
+              "title": "Foyer fiscal"
+            },
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false,
+        "x-legal-basis": {
+          "title": "Note de service, page 8"
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "quotient_familial": {
+        "type": "number",
+        "title": "Quotient familial"
+      },
+      "nombre_unites": {
+        "type": "number",
+        "title": "Nombre d'unités"
+      },
+      "revenu_fiscal_reference": {
+        "type": "number",
+        "title": "Revenu fiscal de référence retenu"
+      },
+      "nombre_personnes_vivants_au_foyer": {
+        "type": "number",
+        "title": "Personnes vivant au foyer"
+      }
+    }
+  },
+  "resources": {
+    "timeout_seconds": 10
+  }
+}
