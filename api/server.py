@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
 from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_manifest
+from catalog.registry_records import describe, load_registry_records
 from catalog.jsonld_converter import manifest_to_jsonld
 from user.fc_mapping import FCMappingEngine, get_fc_mapping_engine, extract_mappings
 from user.fc_client import exchange_code, fetch_userinfo
@@ -39,6 +40,12 @@ ADAPTERS = {
 
 # Simple in-memory manifest store for POC (replace with Postgres for prod)
 MANIFEST_STORE = {}
+
+# Records of regles.data.gouv.fr, which describe the algorithms whose manifest names a `record`
+try:
+    REGISTRY_RECORDS = load_registry_records()
+except OSError:
+    REGISTRY_RECORDS = {}
 
 # ============================================================================
 # FRANCE CONNECT INTEGRATION
@@ -511,10 +518,7 @@ def get_user_catalog(session: Dict[str, Any] = Depends(require_user_session)):
         
         catalog.append({
             "id": manifest_id,
-            "title": manifest.get("dct:title", manifest_id),
-            "description": manifest.get("description", ""),
-            "org": manifest.get("org", ""),
-            "version": manifest.get("version", ""),
+            **describe(manifest, REGISTRY_RECORDS),
             "tags": manifest.get("tags", []),
             "has_fc_mapping": has_fc_mapping,
             "consent_given": bool(algo_consent)

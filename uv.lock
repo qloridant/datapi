@@ -345,6 +345,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "regalgo" },
+    { name = "regalgo-civique-droit-vote" },
     { name = "requests" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
@@ -366,6 +367,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = "==1.0.0" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "regalgo", specifier = "==0.0.3", index = "https://test.pypi.org/simple/" },
+    { name = "regalgo-civique-droit-vote", git = "https://github.com/qloridant/regalgo-civique-droit-vote?rev=13d9f80ca21d47f55aef9710e6288e94ea10ccc6" },
     { name = "requests", specifier = "==2.32.0" },
     { name = "sqlalchemy", specifier = "==2.0.52" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.22.0" },
@@ -1069,6 +1071,14 @@ dependencies = [
 sdist = { url = "https://test-files.pythonhosted.org/packages/06/4f/6a749d0ed2eff49c944a8cabfb43be25f5271d0f56c45cf35bc49815cd74/regalgo-0.0.3.tar.gz", hash = "sha256:1c72729be420d79a1cfbf058611829e8297ac50bf712b2cdf1f3f4edbfc15031", size = 6817, upload-time = "2026-06-08T09:54:28.63Z" }
 wheels = [
     { url = "https://test-files.pythonhosted.org/packages/9b/a6/c2165bc61d2d5c81662c4d30ea36081d3304c93398c4191621597e7e5e7d/regalgo-0.0.3-py3-none-any.whl", hash = "sha256:89928fde3c31f64cb2aab278ce56d13783fb03bf5847392a6857fe2365800913", size = 9500, upload-time = "2026-06-08T09:54:27.453Z" },
+]
+
+[[package]]
+name = "regalgo-civique-droit-vote"
+version = "1.0.4"
+source = { git = "https://github.com/qloridant/regalgo-civique-droit-vote?rev=13d9f80ca21d47f55aef9710e6288e94ea10ccc6#13d9f80ca21d47f55aef9710e6288e94ea10ccc6" }
+dependencies = [
+    { name = "regalgo" },
 ]
 
 [[package]]

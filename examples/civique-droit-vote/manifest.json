@@ -1,0 +1,32 @@
+{
+  "id": "civique-droit-vote",
+  "record": "https://regles.data.gouv.fr/regles/ministere-interieur/civique-droit-vote",
+  "runtime": { "language": "python", "version": "3.13", "primary": true },
+  "entrypoint": { "type": "python:regalgo_class", "target": "regalgo_civique_droit_vote.algorithm:DroitVoteAlgorithm" },
+  "input_schema": {
+    "type": "object",
+    "required": ["data"],
+    "properties": {
+      "data": {
+        "type": "object",
+        "required": ["nationalite_francaise", "age", "capacite_civique", "inscrit_listes_electorales"],
+        "properties": {
+          "nationalite_francaise": { "type": "boolean", "title": "Nationalité française" },
+          "age": { "type": "integer", "title": "Âge" },
+          "capacite_civique": { "type": "boolean", "title": "Jouit de ses droits civiques" },
+          "inscrit_listes_electorales": { "type": "boolean", "title": "Inscrit sur les listes électorales" },
+          "citoyennete_ue": { "type": "boolean", "title": "Citoyenneté d'un pays de l'Union européenne" },
+          "domicile_france": { "type": "boolean", "title": "Domicile en France" }
+        }
+      },
+      "context": {
+        "type": "object",
+        "properties": {
+          "type_election": { "type": "string", "enum": ["nationale", "municipale"], "default": "nationale" }
+        }
+      }
+    }
+  },
+  "output_schema": { "type": "object" },
+  "resources": { "timeout_seconds": 10 }
+}

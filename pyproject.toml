@@ -20,6 +20,7 @@ dependencies = [
     "requests==2.32.0",
     "sqlalchemy==2.0.52",
     "uvicorn[standard]==0.22.0",
+    "regalgo-civique-droit-vote",
 ]
 
 [build-system]
@@ -38,6 +39,7 @@ explicit = true
 [tool.uv.sources]
 regalgo = { index = "testpypi" }
 pass-culture-rules = { path = "examples/pass-culture-package", editable = true }
+regalgo-civique-droit-vote = { git = "https://github.com/qloridant/regalgo-civique-droit-vote", rev = "13d9f80ca21d47f55aef9710e6288e94ea10ccc6" }
 
 [regalgo]
 
