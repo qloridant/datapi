@@ -394,13 +394,14 @@ mêmes calculs que l'exemple Python, pour comparaison directe.
 [Catala](https://catala-lang.org/) est un DSL pour transcrire fidèlement un
 texte légal/réglementaire en code exécutable et auditable (approche utilisée
 en production par [Prest'Agri](https://github.com/betagouv/prestagri)).
-Datapi ne compile **jamais** de Catala à la volée : la compilation
-(`catala python` ou `clerk build`, voir le
-[guide Catala](https://book.catala-lang.org/en/1-0-getting_started.html)) est
-une étape de build, réalisée en amont et dont le résultat (le module Python
-généré) est ce qui est déployé / commité. `CatalaAdapter` se contente
-d'importer ce module déjà compilé et d'appeler la fonction de scope, comme
-`PythonAdapter` le fait pour du Python écrit à la main.
+Datapi ne compile **jamais** de Catala à la volée : la compilation (`catala
+python` ou `clerk build`, voir le [guide
+Catala](https://book.catala-lang.org/en/1-0-getting_started.html)) est une
+étape de build, réalisée en amont et dont le résultat (le module Python
+généré) est ce qui est déployé / commité. `CatalaAdapter` appelle le paquet
+[`engine-catala`](https://github.com/datagouv/regles.data.gouv.fr/tree/main/engines/catala)
+du registre, qui importe ce module déjà compilé et appelle la fonction de
+scope, comme `PythonAdapter` le fait pour du Python écrit à la main.
 
 ```
 src/mon_algo.catala_fr   --catala/clerk-->   generated/MonAlgo.py   --importé par-->   CatalaAdapter
@@ -436,18 +437,17 @@ sortie `generated/` qui n'a pas de dépendance pip au-delà de la stdlib.
 
 ### 3. Marshalling JSON ↔ Catala
 
-`CatalaAdapter` convertit automatiquement, sans mapping manuel, en
-s'appuyant sur les annotations de type de la struct d'entrée générée
-(`typing.get_type_hints`) :
+Le paquet `engine-catala`, que `CatalaAdapter` appelle, convertit
+automatiquement, sans mapping manuel, en s'appuyant sur les annotations de
+type de la struct d'entrée générée (`typing.get_type_hints`) :
 
 - types primitifs : `Money`, `Integer`, `Decimal`, `Bool`, `Date` (`"YYYY-MM-DD"`) ;
 - `Option[T]` (valeur ou `null`) et `Array[T]` (liste JSON) ;
 - structs imbriquées (`CatalaStruct`), champ par champ.
 
 Note : les champs de struct d'entrée générés par Catala portent souvent un
-suffixe `_in` (ex. `agent_revenu_in`) ; l'adapter accepte la clé JSON avec ou
-sans ce suffixe, donc `input_schema` peut rester dans le vocabulaire métier
-sans le suffixe.
+suffixe `_in` (ex. `agent_revenu_in`) ; `engine-catala` attend la clé JSON
+sans ce suffixe, donc `input_schema` reste dans le vocabulaire métier.
 
 Ce qui **n'est pas** géré automatiquement : les types que le compilateur
 Catala marque « externes » (ex. payloads de `CatalaEnum`). Pour ceux-là,
@@ -477,8 +477,8 @@ print(schemas["warnings"])  # champs non couverts (ex. CatalaEnum en entrée), �
 
 `sample_inputs` suit le même parcours de types que `input_schema` (mêmes clés
 JSON, même dépliage des structs/listes/options) et produit une valeur
-plausible par champ (`0` pour `Money`/`Integer`/`Decimal`, `false` pour
-`Bool`, la date du jour pour `Date`, une liste à un élément pour un `Array`,
+plausible par champ (`0` pour `Money`/`Decimal`, `1` pour `Integer`, `false`
+pour `Bool`, `2026-01-01` pour `Date`, une liste à un élément pour un `Array`,
 la valeur enveloppée — pas `null` — pour un `Option`) ; un champ `CatalaEnum`
 en entrée reste à `null`, à remplir à la main (voir la limite ci-dessous).
 
