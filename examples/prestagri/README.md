@@ -3,11 +3,12 @@
 A real-world [Catala](https://catala-lang.org/) algorithm vendored from
 [Prest'Agri](https://github.com/betagouv/prestagri) (Apache-2.0), registered
 and executed through Datapi via `adapters/catala_adapter.py`. Where
-`examples/catala` is a toy scope with only flat scalar fields, this one
-("aide à la scolarité") exercises the parts of `CatalaAdapter`'s marshalling
-that scope doesn't: a nested `CatalaStruct` field (`Menage` containing a
-`List[FoyerFiscal]`), an `Option[Trajet]` field, and `List[CatalaEnum]`
-outputs (`criteres_applicables`).
+`examples/catala` is a toy scope with only flat scalar fields, this one ("aide
+à la scolarité") exercises conversions that the toy scope doesn't: a nested
+`CatalaStruct` field (`Menage` containing a `List[FoyerFiscal]`), an
+`Option[Trajet]` field, and `List[CatalaEnum]` outputs
+(`criteres_applicables`). The package `engine-catala`, which `CatalaAdapter`
+calls, does these conversions.
 
 Pattern: same as `examples/catala` — sources are compiled ahead of time to
 Python and the generated package is checked in / built as an artifact, not

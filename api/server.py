@@ -7,12 +7,15 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Header, Request, Depends, Response, Query
 from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from jsonschema import validate, ValidationError
 from pydantic import BaseModel
 from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
+from adapters.openfisca_adapter import OpenfiscaAdapter
 from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_manifest
+from catalog.registry_records import describe, load_registry_records
 from catalog.jsonld_converter import manifest_to_jsonld
 from user.fc_mapping import FCMappingEngine, get_fc_mapping_engine, extract_mappings
 from user.fc_client import exchange_code, fetch_userinfo
@@ -21,6 +24,10 @@ from user.apipart_client import fetch_quotient_familial, APIPartClientError
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "test-token")
 
 app = FastAPI(title="Datapi POC")
+
+# Origins allowed to call the public routes from a browser, comma-separated
+CORS_ORIGINS = [origin for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/admin", StaticFiles(directory=STATIC_DIR, html=True), name="admin")
@@ -35,10 +42,17 @@ if os.path.exists(USER_STATIC_DIR):
 ADAPTERS = {
     "python": PythonAdapter,
     "catala": CatalaAdapter,
+    "openfisca": OpenfiscaAdapter,
 }
 
 # Simple in-memory manifest store for POC (replace with Postgres for prod)
 MANIFEST_STORE = {}
+
+# Records of regles.data.gouv.fr, which describe the algorithms whose manifest names a `record`
+try:
+    REGISTRY_RECORDS = load_registry_records()
+except OSError:
+    REGISTRY_RECORDS = {}
 
 # ============================================================================
 # FRANCE CONNECT INTEGRATION
@@ -234,9 +248,14 @@ def manifest_schema():
 @app.post("/catalog/infer-schema")
 def infer_schema(entrypoint: dict, token: str = Depends(require_auth)):
     # helper for the /admin console: generate input_schema/output_schema from the
-    # compiled Catala module's own type hints, instead of hand-transcribing them.
+    # compiled Catala module's own type hints, or from the variables of an OpenFisca system.
+    if entrypoint.get("type") == "openfisca:variables":
+        try:
+            return OpenfiscaAdapter().infer_manifest_schemas(entrypoint)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
     if entrypoint.get("type") != "catala:scope":
-        raise HTTPException(status_code=400, detail="schema inference only supported for entrypoint.type 'catala:scope'")
+        raise HTTPException(status_code=400, detail="schema inference only supported for entrypoint.type 'catala:scope' or 'openfisca:variables'")
     target = entrypoint.get("target")
     if not target:
         raise HTTPException(status_code=400, detail="entrypoint.target required")
@@ -305,7 +324,34 @@ async def execute(manifest_id: str, request: Request, token: str = Depends(requi
     manifest = MANIFEST_STORE.get(manifest_id)
     if not manifest:
         raise HTTPException(status_code=404, detail="manifest not found")
-    body = await request.json()
+    return run_algorithm(manifest, await request.json())
+
+
+def get_public_manifest(manifest_id: str) -> Dict[str, Any]:
+    manifest = MANIFEST_STORE.get(manifest_id)
+    if not manifest or not manifest.get("public"):
+        raise HTTPException(status_code=404, detail="algorithm not found")
+    return manifest
+
+
+@app.get("/public/catalog/{manifest_id}")
+def get_public_algorithm(manifest_id: str):
+    manifest = get_public_manifest(manifest_id)
+    return {
+        "id": manifest_id,
+        "record": manifest.get("record"),
+        **describe(manifest, REGISTRY_RECORDS),
+        "input_schema": manifest["input_schema"],
+        "output_schema": manifest.get("output_schema", {}),
+    }
+
+
+@app.post("/public/execute/{manifest_id}")
+async def execute_public(manifest_id: str, request: Request):
+    return run_algorithm(get_public_manifest(manifest_id), await request.json())
+
+
+def run_algorithm(manifest: Dict[str, Any], body: Any) -> JSONResponse:
     # validate input_schema
     try:
         validate(instance=body, schema=manifest["input_schema"])
@@ -511,10 +557,7 @@ def get_user_catalog(session: Dict[str, Any] = Depends(require_user_session)):
         
         catalog.append({
             "id": manifest_id,
-            "title": manifest.get("dct:title", manifest_id),
-            "description": manifest.get("description", ""),
-            "org": manifest.get("org", ""),
-            "version": manifest.get("version", ""),
+            **describe(manifest, REGISTRY_RECORDS),
             "tags": manifest.get("tags", []),
             "has_fc_mapping": has_fc_mapping,
             "consent_given": bool(algo_consent)

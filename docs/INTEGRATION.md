@@ -18,11 +18,13 @@ flowchart LR
     B --> C{runtime.language}
     C -->|python| D[PythonAdapter]
     C -->|catala| E[CatalaAdapter]
+    C -->|openfisca| G[OpenfiscaAdapter]
     D --> F[POST /catalog/register\nPOST /execute/id]
     E --> F
+    G --> F
 ```
 
-## Le manifeste, commun aux deux langages
+## Le manifeste, commun à tous les langages
 
 Champs requis (voir le schéma complet) :
 
@@ -30,7 +32,7 @@ Champs requis (voir le schéma complet) :
 |---|---|
 | `id` | Identifiant unique dans le catalogue, utilisé dans l'URL `/execute/{id}` |
 | `dct:title`, `description`, `org` | Métadonnées d'affichage |
-| `runtime.language` | `"python"` ou `"catala"` — sélectionne l'adapter (`api/server.py`, dict `ADAPTERS`) |
+| `runtime.language` | `"python"`, `"catala"` ou `"openfisca"` — sélectionne l'adapter (`api/server.py`, dict `ADAPTERS`) |
 | `entrypoint.type` / `entrypoint.target` | Comment charger et appeler le code (détails ci-dessous par langage) |
 | `input_schema` / `output_schema` | JSON Schema. `input_schema` est validé par l'API (`api/server.py`) **et** par l'adapter avant chaque exécution |
 | `resources.timeout_seconds` | Timeout d'exécution passé à l'adapter |
@@ -394,13 +396,14 @@ mêmes calculs que l'exemple Python, pour comparaison directe.
 [Catala](https://catala-lang.org/) est un DSL pour transcrire fidèlement un
 texte légal/réglementaire en code exécutable et auditable (approche utilisée
 en production par [Prest'Agri](https://github.com/betagouv/prestagri)).
-Datapi ne compile **jamais** de Catala à la volée : la compilation
-(`catala python` ou `clerk build`, voir le
-[guide Catala](https://book.catala-lang.org/en/1-0-getting_started.html)) est
-une étape de build, réalisée en amont et dont le résultat (le module Python
-généré) est ce qui est déployé / commité. `CatalaAdapter` se contente
-d'importer ce module déjà compilé et d'appeler la fonction de scope, comme
-`PythonAdapter` le fait pour du Python écrit à la main.
+Datapi ne compile **jamais** de Catala à la volée : la compilation (`catala
+python` ou `clerk build`, voir le [guide
+Catala](https://book.catala-lang.org/en/1-0-getting_started.html)) est une
+étape de build, réalisée en amont et dont le résultat (le module Python
+généré) est ce qui est déployé / commité. `CatalaAdapter` appelle le paquet
+[`engine-catala`](https://github.com/datagouv/regles.data.gouv.fr/tree/main/engines/catala)
+du registre, qui importe ce module déjà compilé et appelle la fonction de
+scope, comme `PythonAdapter` le fait pour du Python écrit à la main.
 
 ```
 src/mon_algo.catala_fr   --catala/clerk-->   generated/MonAlgo.py   --importé par-->   CatalaAdapter
@@ -436,18 +439,17 @@ sortie `generated/` qui n'a pas de dépendance pip au-delà de la stdlib.
 
 ### 3. Marshalling JSON ↔ Catala
 
-`CatalaAdapter` convertit automatiquement, sans mapping manuel, en
-s'appuyant sur les annotations de type de la struct d'entrée générée
-(`typing.get_type_hints`) :
+Le paquet `engine-catala`, que `CatalaAdapter` appelle, convertit
+automatiquement, sans mapping manuel, en s'appuyant sur les annotations de
+type de la struct d'entrée générée (`typing.get_type_hints`) :
 
 - types primitifs : `Money`, `Integer`, `Decimal`, `Bool`, `Date` (`"YYYY-MM-DD"`) ;
 - `Option[T]` (valeur ou `null`) et `Array[T]` (liste JSON) ;
 - structs imbriquées (`CatalaStruct`), champ par champ.
 
 Note : les champs de struct d'entrée générés par Catala portent souvent un
-suffixe `_in` (ex. `agent_revenu_in`) ; l'adapter accepte la clé JSON avec ou
-sans ce suffixe, donc `input_schema` peut rester dans le vocabulaire métier
-sans le suffixe.
+suffixe `_in` (ex. `agent_revenu_in`) ; `engine-catala` attend la clé JSON
+sans ce suffixe, donc `input_schema` reste dans le vocabulaire métier.
 
 Ce qui **n'est pas** géré automatiquement : les types que le compilateur
 Catala marque « externes » (ex. payloads de `CatalaEnum`). Pour ceux-là,
@@ -477,8 +479,8 @@ print(schemas["warnings"])  # champs non couverts (ex. CatalaEnum en entrée), �
 
 `sample_inputs` suit le même parcours de types que `input_schema` (mêmes clés
 JSON, même dépliage des structs/listes/options) et produit une valeur
-plausible par champ (`0` pour `Money`/`Integer`/`Decimal`, `false` pour
-`Bool`, la date du jour pour `Date`, une liste à un élément pour un `Array`,
+plausible par champ (`0` pour `Money`/`Decimal`, `1` pour `Integer`, `false`
+pour `Bool`, `2026-01-01` pour `Date`, une liste à un élément pour un `Array`,
 la valeur enveloppée — pas `null` — pour un `Option`) ; un champ `CatalaEnum`
 en entrée reste à `null`, à remplir à la main (voir la limite ci-dessous).
 
@@ -511,7 +513,50 @@ Une erreur métier levée par le scope Catala lui-même (ex. `NoValue`,
 remontée comme `{"status": "failed", ...}`, distinct de `{"status": "error",
 ...}` réservé aux erreurs d'adapter/infra.
 
-## Enregistrer et exécuter (commun aux deux langages)
+## Intégrer une règle OpenFisca
+
+Adapter : [`adapters/openfisca_adapter.py`](../adapters/openfisca_adapter.py).
+Exemple : [`examples/openfisca-pass-culture/`](../examples/openfisca-pass-culture/manifest.json).
+
+Une règle OpenFisca est un ensemble de variables d'un système socio-fiscal :
+celles qu'on calcule et celles qu'on saisit. Le paquet du pays (par exemple
+`openfisca-france`) est une dépendance de Datapi, à la version que cite la
+fiche du registre. `OpenfiscaAdapter` appelle le paquet
+[`engine-openfisca`](https://github.com/datagouv/regles.data.gouv.fr/tree/main/engines/openfisca)
+du registre, qui calcule la règle pour une personne seule, chaque entité de
+groupe (famille, foyer fiscal, ménage) la contenant seule.
+
+```json
+"runtime": { "language": "openfisca", "version": "175.1.4", "primary": true },
+"entrypoint": {
+  "type": "openfisca:variables",
+  "target": "openfisca_france",
+  "outputs": ["pass_culture"],
+  "inputs": ["date_naissance"]
+}
+```
+
+Les entrées contiennent la période du calcul, `period`, au format d'OpenFisca
+(`2025-04` pour une règle mensuelle, `2025` pour une règle annuelle), et une
+valeur par variable saisie. `POST /catalog/infer-schema` avec cet
+`entrypoint` rend `input_schema` et `output_schema`, tirés des types et des
+libellés des variables.
+
+Une variable mensuelle saisie sur l'année glissante, les douze mois qui
+précèdent le mois du calcul, figure aussi dans `rolling_year_inputs`. L'entrée
+reçoit le total de ces douze mois, qu'OpenFisca répartit sur chaque mois :
+
+```json
+"entrypoint": {
+  "type": "openfisca:variables",
+  "target": "openfisca_france",
+  "outputs": ["ppa"],
+  "inputs": ["salaire_imposable"],
+  "rolling_year_inputs": ["salaire_imposable"]
+}
+```
+
+## Enregistrer et exécuter (commun à tous les langages)
 
 Une fois le manifeste écrit et testé en local via l'adapter, l'enregistrement
 et l'exécution passent par l'API HTTP, avec un header
