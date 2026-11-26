@@ -94,6 +94,23 @@ async function apiPost(endpoint, body) {
   return res.json();
 }
 
+// Pré-remplissage Démarche numérique : le clic appelle le proxy serveur, qui
+// crée le dossier prérempli côté DS (POST) et renvoie dossier_url. L'onglet est
+// ouvert de façon synchrone (avant l'appel asynchrone) pour ne pas être bloqué
+// par les bloqueurs de pop-up. Repli : ouvrir la démarche sans préremplissage.
+async function submitDemarchePrefill(event, demarchePrefill, fallbackUrl) {
+  event.preventDefault();
+  const tab = window.open('', '_blank');
+  try {
+    const res = await apiPost('/user/demarche-prefill', demarchePrefill);
+    tab.location = res.dossier_url;
+  } catch (err) {
+    if (tab) tab.close();
+    console.warn('Pré-remplissage Démarche numérique impossible :', err);
+    window.open(fallbackUrl, '_blank');
+  }
+}
+
 // Form field types
 const FIELD_TYPES = {
   string: 'text',
@@ -679,12 +696,19 @@ async function handleSubmit(e) {
       ? `✓ Exécution réussie (${Number(seconds).toFixed(2)} s)`
       : '✓ Exécution réussie';
 
-    // Carte d'action : output.metadata.redirect_url
+    // Carte d'action : output.metadata.redirect_url (repli sans pré-remplissage)
+    // et output.metadata.demarche_prefill (pré-remplissage Démarche numérique
+    // via le proxy serveur, déclenché au clic uniquement).
     const redirectUrl = result.output?.metadata?.redirect_url;
+    const demarchePrefill = result.output?.metadata?.demarche_prefill;
     const redirectCard = $('result-redirect');
+    redirectCard.onclick = null;
     if (redirectUrl) {
       redirectCard.href = redirectUrl;
       redirectCard.hidden = false;
+      if (demarchePrefill) {
+        redirectCard.onclick = (ev) => submitDemarchePrefill(ev, demarchePrefill, redirectUrl);
+      }
     } else {
       redirectCard.hidden = true;
     }

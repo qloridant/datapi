@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import secrets
 import uuid
 from urllib.parse import urlencode
@@ -20,6 +21,7 @@ from catalog.jsonld_converter import manifest_to_jsonld
 from user.fc_mapping import FCMappingEngine, get_fc_mapping_engine, extract_mappings
 from user.fc_client import exchange_code, fetch_userinfo
 from user.apipart_client import fetch_quotient_familial, APIPartClientError
+from user.dn_prefill_client import create_prefilled_dossier, DemarchePrefillError
 
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "test-token")
 
@@ -95,6 +97,13 @@ APIPART_CONFIG = {
     ),
     # SIRET du "client final" (exemples de la doc : DINUM en staging)
     "recipient": os.getenv("API_PARTICULIER_RECIPIENT", "13002526500013"),
+}
+
+DEMARCHE_NUMERIQUE_CONFIG = {
+    "base_url": os.getenv(
+        "DEMARCHE_NUMERIQUE_BASE_URL",
+        "https://demarche.numerique.gouv.fr"
+    ),
 }
 
 # Session configuration
@@ -763,6 +772,73 @@ async def user_execute(
     result["execution_context"] = execution_context
     
     return JSONResponse(status_code=200, content=result)
+
+
+# ============================================================================
+# DEMARCHE NUMERIQUE PREFILL PROXY
+# ============================================================================
+
+# Clé de pré-remplissage DS : « champ_ » + identifiant base 64 du champ
+# (stable, visible sur la page /preremplir/<slug> de la démarche).
+_PREFILL_CHAMP_KEY_RE = re.compile(r"^champ_[A-Za-z0-9+/=]{1,64}$")
+_MAX_PREFILL_FIELDS = 50
+_MAX_PREFILL_VALUE_LEN = 200
+
+
+def _validate_prefill_payload(body: Any) -> tuple:
+    """Validate the demarche id and prefill body sent by the front-end.
+
+    Keeps the proxy bounded: numeric demarche id, ``champ_<base64>`` keys,
+    scalar values only.
+    """
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Invalid prefill payload")
+    demarche_id = body.get("demarche_id")
+    prefill_body = body.get("prefill_body")
+    if not isinstance(demarche_id, str) or not demarche_id.isdigit():
+        raise HTTPException(status_code=400, detail="demarche_id must be a numeric string")
+    if not isinstance(prefill_body, dict) or not (1 <= len(prefill_body) <= _MAX_PREFILL_FIELDS):
+        raise HTTPException(status_code=400, detail=f"prefill_body must be an object of 1 to {_MAX_PREFILL_FIELDS} fields")
+    for key, value in prefill_body.items():
+        if not isinstance(key, str) or not _PREFILL_CHAMP_KEY_RE.match(key):
+            raise HTTPException(status_code=400, detail=f"Invalid prefill key: {key}")
+        if not isinstance(value, (str, bool, int, float)):
+            raise HTTPException(status_code=400, detail=f"Invalid prefill value for key: {key}")
+        if isinstance(value, str) and len(value) > _MAX_PREFILL_VALUE_LEN:
+            raise HTTPException(status_code=400, detail=f"Prefill value too long for key: {key}")
+    return demarche_id, prefill_body
+
+
+@app.post("/user/demarche-prefill")
+async def user_demarche_prefill(
+    request: Request,
+    session: Dict[str, Any] = Depends(require_user_session)
+):
+    """
+    Create a pre-filled draft dossier on demarche.numerique.gouv.fr.
+
+    Server-side proxy for the DS public prefill API, called by the front-end
+    when the user clicks the action card: a dossier is created on click only
+    (not on every algorithm execution), personal data stays out of URLs and
+    browser calls, and no CORS dependency.
+    """
+    body = await request.json()
+    demarche_id, prefill_body = _validate_prefill_payload(body)
+
+    try:
+        result = await create_prefilled_dossier(
+            DEMARCHE_NUMERIQUE_CONFIG, demarche_id, prefill_body
+        )
+    except DemarchePrefillError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    dossier_url = result.get("dossier_url")
+    if not dossier_url:
+        raise HTTPException(status_code=502, detail="Prefill response missing dossier_url")
+    return JSONResponse(status_code=200, content={
+        "dossier_url": dossier_url,
+        "dossier_number": result.get("dossier_number"),
+    })
 
 
 # ============================================================================

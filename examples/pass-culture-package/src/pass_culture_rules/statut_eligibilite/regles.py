@@ -16,6 +16,7 @@ fonctions voisines de ce module.
 from __future__ import annotations
 
 import datetime
+import re
 from pathlib import Path
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -32,6 +33,21 @@ _CUSTOM_TIMEZONES: dict[str, str] = {
     "987": "Pacific/Tahiti", "988": "Pacific/Noumea", "989": "Pacific/Pitcairn",
 }
 _METROPOLE_TIMEZONE = "Europe/Paris"
+
+# Démarche numérique de redirection : « Pass Culture (test DINUM) », n° 162223,
+# en brouillon (slug UUID, accessible avec ?test=true). Le pré-remplissage
+# passe par l'API publique de préremplissage POST
+# /api/public/v1/demarches/<id>/dossiers — la réponse contient ``dossier_url``
+# vers laquelle diriger l'usager. Clés de champ stables (base 64) relevées
+# sur la page /preremplir/<slug> de la démarche :
+# https://doc.demarches-simplifiees.fr/pour-aller-plus-loin/api-de-preremplissage
+_DEMARCHE_NUMERIQUE_URL = (
+    "https://demarche.numerique.gouv.fr/commencer/"
+    "009cbfb4-f492-47d5-932f-2a437bdca3b6?test=true"
+)
+_DEMARCHE_NUMERIQUE_ID = "162223"
+_CHAMP_DATE_NAISSANCE = "champ_Q2hhbXAtNzI0NzcyNg"
+_CHAMP_DEPARTEMENT = "champ_Q2hhbXAtNzI0NzczMQ"
 
 
 def _department_timezone(department_code: Optional[str]) -> str:
@@ -67,6 +83,32 @@ def _parse_datetime(value: Any) -> datetime.datetime:
     if isinstance(value, datetime.datetime):
         return value
     return datetime.datetime.fromisoformat(value)
+
+
+def _departement_depuis_adresse(address: Any) -> Optional[str]:
+    """Département résidentiel déduit de l'adresse API Particulier.
+
+    ``address.code_postal_ville`` (CAF) a la forme « 63100 CLERMONT
+    FERRAND » : le numéro de département se déduit du préfixe du code
+    postal — 2 chiffres en métropole, 3 pour les DROM (97x/98x). Les
+    codes corses (20xxx) couvrent à la fois la Corse-du-Sud (2A) et la
+    Haute-Corse (2B) : sans la commune, le département est indécidable
+    et le champ n'est pas pré-rempli (l'usager le saisit).
+    """
+    if not isinstance(address, dict):
+        return None
+    code_postal_ville = address.get("code_postal_ville")
+    if not isinstance(code_postal_ville, str):
+        return None
+    match = re.match(r"\s*(\d{2,3})", code_postal_ville)
+    if match is None:
+        return None
+    prefix = match.group(1)
+    if prefix.startswith(("97", "98")):
+        return prefix
+    if prefix[:2] == "20":
+        return None
+    return prefix[:2]
 
 
 class StatutEligibiliteAlgo(BaseRule):
@@ -128,7 +170,16 @@ class StatutEligibiliteAlgo(BaseRule):
 
     def _result(self, value: Optional[str], data: dict[str, Any], metadata: dict[str, Any]) -> AlgoResult:
         if value != 'not_eligible':
-            metadata['redirect_url'] = "https://passculture.app/creation-compte?from=data.gouv"
+            prefill_body = {_CHAMP_DATE_NAISSANCE: data.get("date_naissance")}
+            departement = _departement_depuis_adresse(data.get("address"))
+            if departement is not None:
+                prefill_body[_CHAMP_DEPARTEMENT] = departement
+            metadata['demarche_prefill'] = {
+                "demarche_id": _DEMARCHE_NUMERIQUE_ID,
+                "prefill_body": prefill_body,
+            }
+            # Repli sans pré-remplissage si l'appel POST échoue côté front.
+            metadata['redirect_url'] = _DEMARCHE_NUMERIQUE_URL
         return AlgoResult(
             value=value,
             algo_id=self.algo_id,

@@ -14,7 +14,17 @@
         "type": "object",
         "properties": {
           "date_naissance": { "type": ["string", "null"], "title": "Date de naissance", "franceconnect": "$default.birthdate" },
-          "address": { "type": ["string", "null"], "title": "Adresse", "franceconnect": "$default.address" },
+          "address": {
+            "type": ["object", "null"],
+            "title": "Adresse",
+            "properties": {
+              "code_postal_ville": {
+                "type": ["string", "null"],
+                "title": "Code postal et commune",
+                "apiparticulier": "data.adresse.code_postal_ville"
+              }
+            }
+          },
           "quotient_familial" : { "type": "integer", "title": "Quotient familial", "apiparticulier": "$default.quotient_familial" }
         }
       },
